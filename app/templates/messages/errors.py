@@ -1,7 +1,9 @@
-ERROR_GENERIC = "Desculpe, não entendi. Por favor, tente novamente ou digite 'oi' para voltar ao início."
+# Mensagem de erro extraída do JSON do n8n
+ERROR_INVALID_OPTION = """*Associação Remar do Brasil*
+🚫 *Opção inválida!*
 
-ERROR_INVALID_OPTION = "⚠ Opção inválida. Por favor, digite apenas o número correspondente à opção desejada."
+Parece que você escolheu uma opção que não reconhecemos.
 
-ERROR_FILE_TOO_LARGE = "O arquivo enviado é muito grande. Por favor, envie uma imagem menor."
+Por favor, escolha uma das opções válidas listadas no menu.
 
-ERROR_FILE_TYPE_NOT_SUPPORTED = "Formato de arquivo não suportado. Por favor, envie uma imagem (JPG/PNG)."
+_*Canal oficial da Remar Brasil*_"""

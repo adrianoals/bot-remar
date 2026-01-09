@@ -1,5 +1,4 @@
-STATE_SELECTION_MESSAGE = """
-*Associação Remar do Brasil*
+STATE_SELECTION_MESSAGE = """*Associação Remar do Brasil*
 😊 Olá! Seja bem-vindo à Remar Brasil! 👋
 
 Para qual Estado você deseja atendimento?
@@ -14,5 +13,4 @@ Para qual Estado você deseja atendimento?
 
 Estamos aqui para te ajudar! 😊
 
-_*Canal oficial da Remar Brasil*_
-"""
+_*Canal oficial da Remar Brasil*_"""

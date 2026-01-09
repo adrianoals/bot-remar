@@ -1,18 +1,12 @@
-LIST_PAYMENT_OPTIONS = """
-*Formas de Pagamento*
+# Mensagem de doação em valor
+DONATION_VALUE_MESSAGE = """*Associação Remar do Brasil*
 
-Selecione como deseja contribuir:
+✨ Muito obrigado por sua generosidade! ✨
 
-1. PIX
-2. BOLETO
+Juntos, faremos a diferença na vida de muitas pessoas! ❤️
 
-Responda com o número da opção.
-"""
+Para confirmar sua doação em valor (R$), clique no link abaixo:
 
-PAYMENT_PIX_INFO = """
-*Chave PIX:* 12.345.678/0001-90 (CNPJ)
-Nome: Associação Remar do Brasil
-Banco: Banco do Brasil
+🔗 *[Faça sua doação](https://paybox.doare.org/paybox?payboxId=284db8dc-7878-4040-9d7d-1106556e8fa2)*
 
-Envie o comprovante por aqui se desejar! 🙏
-"""
+_*Canal oficial da Remar Brasil*_"""
