@@ -23,6 +23,23 @@ Script SQL completo para recriar todo o schema do projeto:
 - Instruções para criação do bucket de Storage
 - Comentários e documentação inline
 
+### [criar_storage_bucket.md](./criar_storage_bucket.md)
+Guia completo para criar o bucket `whatsapp_media` no Supabase Storage:
+- Método 1: Via Dashboard (recomendado)
+- Método 2: Via SQL Editor
+- Método 3: Via API REST (programático)
+- Configurações de segurança
+- Políticas de acesso
+- Troubleshooting
+
+### [storage_policies.sql](./storage_policies.sql)
+Script SQL com políticas de acesso para o bucket `whatsapp_media`:
+- Política de leitura pública
+- Política de upload (apenas autenticados)
+- Política de atualização (apenas autenticados)
+- Política de deleção (apenas autenticados)
+- Alternativa com política única para service_role
+
 ## 🗄️ Resumo Rápido
 
 ### Tabelas Principais

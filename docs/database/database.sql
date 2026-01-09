@@ -138,17 +138,21 @@ CREATE TRIGGER trigger_update_doacoes_atualizado_em
 -- Propósito: Buscar a última doação criada por um usuário específico
 -- ============================================================================
 
+-- Dropar a função existente (se houver) para evitar conflitos
+DROP FUNCTION IF EXISTS get_ultima_doacao(TEXT);
+
+-- Criar a função com os tipos corretos
 CREATE OR REPLACE FUNCTION get_ultima_doacao(wa_id_param TEXT)
 RETURNS TABLE (
     id UUID,
-    wa_id TEXT,
-    tipo_doacao TEXT,
-    estado_doacao TEXT,
-    nome_responsavel TEXT,
+    wa_id VARCHAR(20),
+    tipo_doacao VARCHAR(50),
+    estado_doacao VARCHAR(100),
+    nome_responsavel VARCHAR(255),
     endereco_retirada TEXT,
-    telefone_whatsapp TEXT,
-    email TEXT,
-    horario_preferencial TEXT,
+    telefone_whatsapp VARCHAR(20),
+    email VARCHAR(255),
+    horario_preferencial VARCHAR(20),
     fotos TEXT,
     criado_em TIMESTAMP,
     atualizado_em TIMESTAMP
