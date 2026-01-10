@@ -2,7 +2,6 @@ from app.services.mega_api import MegaApiService
 from app.services.supabase_service import SupabaseService
 from app.templates.messages import (
     WELCOME_MESSAGE,
-    STATE_SELECTION_MESSAGE,
     DONATION_TYPE_MENU,
     DONATION_CATEGORY_MENU,
     DONATION_ITEM_CONDITION,
@@ -43,14 +42,21 @@ class FlowManager:
 
     def extract_text_content(self, message: Dict[str, Any]) -> str:
         """Extrai o conteúdo de texto de uma mensagem."""
+        if not message:
+            return ""
+        
+        # Mensagem de conversa simples
         if "conversation" in message:
             return message["conversation"]
+        # Mensagem de texto estendida
         elif "extendedTextMessage" in message:
             return message["extendedTextMessage"].get("text", "")
+        # Mensagem efêmera
         elif "ephemeralMessage" in message:
             ephem = message["ephemeralMessage"].get("message", {})
             if "extendedTextMessage" in ephem:
                 return ephem["extendedTextMessage"].get("text", "")
+        # Resposta de lista
         elif "listResponseMessage" in message:
             return message["listResponseMessage"].get("singleSelectReply", {}).get("selectedRowId", "")
         return ""
@@ -58,20 +64,51 @@ class FlowManager:
     async def handle_message(self, data: dict):
         """Recebe o payload do webhook e decide o que fazer."""
         try:
-            body = data.get("body", {})
-            message = body.get("message", {})
-            key = body.get("key", {})
+            logger.info("=" * 60)
+            logger.info("PROCESSANDO MENSAGEM")
+            logger.info("=" * 60)
+            logger.info(f"Data recebida: {data}")
+            
+            # O payload da MegaAPI vem na raiz, não dentro de "body"
+            # Formato: { "key": {...}, "message": {...}, "pushName": "...", etc }
+            message = data.get("message", {})
+            key = data.get("key", {})
             remote_jid = key.get("remoteJid", "")
             from_me = key.get("fromMe", False)
-            is_group = body.get("isGroup", False)
-            push_name = body.get("pushName", "")
+            is_group = data.get("isGroup", False)
+            push_name = data.get("pushName", "")
+            message_type = data.get("messageType", "")
 
-            # Ignorar mensagens próprias ou de grupos
-            if from_me or is_group:
+            logger.info(f"Message: {message}")
+            logger.info(f"Key: {key}")
+            logger.info(f"remoteJid: {remote_jid}")
+            logger.info(f"pushName: {push_name}")
+            logger.info(f"messageType: {message_type}")
+            logger.info(f"fromMe: {from_me}, isGroup: {is_group}")
+
+            # Ignorar mensagens de confirmação (ack) - não são mensagens reais
+            if message_type == "message.ack":
+                logger.info("⚠️ Mensagem ignorada: messageType = 'message.ack' (confirmação)")
                 return
 
-            wa_id = remote_jid.split("@")[0]
+            # Ignorar mensagens próprias ou de grupos
+            if from_me:
+                logger.info("⚠️ Mensagem ignorada: fromMe = True (mensagem própria)")
+                return
+            if is_group:
+                logger.info("⚠️ Mensagem ignorada: isGroup = True (mensagem de grupo)")
+                return
+
+            wa_id = remote_jid.split("@")[0] if remote_jid else ""
+            logger.info(f"✅ wa_id extraído: {wa_id}")
+            
+            if not wa_id:
+                logger.error("❌ ERRO: wa_id está vazio! remoteJid não encontrado ou inválido")
+                logger.error(f"remote_jid completo: {remote_jid}")
+                return
+            
             text_content = self.extract_text_content(message).strip()
+            logger.info(f"✅ Texto extraído: '{text_content}'")
 
             # Verificar comandos de admin
             if text_content.startswith("/"):
@@ -79,19 +116,24 @@ class FlowManager:
                 return
 
             # Buscar estado atual do usuário
+            logger.info(f"🔍 Buscando estado do usuário: {wa_id}")
             user_state = self.supabase.get_user_state(wa_id)
+            logger.info(f"📊 Estado encontrado: {user_state}")
             
             # Atualizar data e horário a cada mensagem (como no n8n)
             # Isso garante que sempre temos a última interação registrada
             if user_state:
                 from datetime import datetime
+                logger.info("🔄 Atualizando data e horário...")
                 self.supabase.create_or_update_user(wa_id, {
                     "data": datetime.now().strftime('%Y-%m-%d'),
                     "horario": datetime.now().strftime('%H:%M:%S')
                 })
+                logger.info("✅ Data e horário atualizados")
             
             # Se não tem estado ou é comando de início, começar fluxo
             if not user_state or text_content.lower() in ["oi", "ola", "olá", "começar", "inicio", "início"]:
+                logger.info("🚀 Iniciando novo fluxo (usuário novo ou comando de início)")
                 await self.handle_initial_state(wa_id, push_name)
                 return
 
@@ -131,50 +173,62 @@ class FlowManager:
 
     async def handle_initial_state(self, wa_id: str, push_name: str):
         """Handle estado inicial - seleção de estado geográfico (Switch3)."""
-        await self.mega_api.send_text(wa_id, STATE_SELECTION_MESSAGE)
+        logger.info(f"📝 Salvando dados iniciais - wa_id: {wa_id}, nome: {push_name}")
+        
         # Salvar nome do WhatsApp (pushName) na tabela conversas, como no n8n
-        self.supabase.create_or_update_user(wa_id, {
-            "estado": "inicio",
-            "nome": push_name or ""
-        })
+        try:
+            self.supabase.create_or_update_user(wa_id, {
+                "estado": "inicio",
+                "nome": push_name or ""
+            })
+            logger.info(f"✅ Dados salvos no banco: wa_id=+{wa_id}, nome={push_name}")
+        except Exception as e:
+            logger.error(f"❌ Erro ao salvar dados iniciais: {e}", exc_info=True)
+        
+        # Enviar mensagem inicial (menu principal) - como no fluxo original n8n
+        try:
+            logger.info(f"📤 Enviando mensagem de boas-vindas (menu principal) para {wa_id}")
+            result = await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
+            if result:
+                logger.info("✅ Mensagem enviada com sucesso")
+            else:
+                logger.error("❌ Falha ao enviar mensagem (retorno None)")
+        except Exception as e:
+            logger.error(f"❌ Erro ao enviar mensagem: {e}", exc_info=True)
 
     async def handle_menu_principal(self, wa_id: str, text_content: str):
         """Handle menu principal (Switch4)."""
-        # Verificar se é seleção de estado primeiro
-        estados_map = {
-            "1": "SP",
-            "2": "RJ",
-            "3": "ES",
-            "4": "MG",
-            "5": "PR"
-        }
-
-        if text_content in estados_map:
-            # Estado selecionado, mostrar menu principal
-            await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
-            self.supabase.update_state(wa_id, "inicio")
-            return
-
+        logger.info(f"📋 Processando menu principal - texto: '{text_content}'")
+        
         # Menu principal (Switch4)
         if text_content == "1":
+            logger.info("📦 Opção 1 selecionada: Doação")
             self.supabase.update_state(wa_id, "doacao")
             await self.mega_api.send_text(wa_id, DONATION_TYPE_MENU)
         elif text_content == "2":
+            logger.info("🏠 Opção 2 selecionada: Acolhimento")
             self.supabase.update_state(wa_id, "acolhimento")
             await self.mega_api.send_text(wa_id, ACOLHIMENTO_WELCOME)
         elif text_content == "3":
+            logger.info("🛒 Opção 3 selecionada: Lojas")
             self.supabase.update_state(wa_id, "lojas")
             await self.mega_api.send_text(wa_id, LOJAS_MENU)
         elif text_content == "4":
+            logger.info("🔧 Opção 4 selecionada: Serviços")
             self.supabase.update_state(wa_id, "servico")
             await self.mega_api.send_text(wa_id, SERVICES_MENU)
         elif text_content == "5":
+            logger.info("🚚 Opção 5 selecionada: Fretes")
             self.supabase.update_state(wa_id, "fretes")
             await self.mega_api.send_text(wa_id, FRETES_MENU)
         elif text_content == "0":
+            logger.info("🔄 Opção 0 selecionada: Voltar ao início")
             await self.handle_initial_state(wa_id, "")
         else:
+            # Texto não é uma opção válida - mostrar mensagem de erro e depois o menu
+            logger.info(f"⚠️ Opção inválida: '{text_content}'. Mostrando mensagem de erro e menu")
             await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+            await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
 
     async def handle_doacao_tipo(self, wa_id: str, text_content: str):
         """Handle tipo de doação (Switch5)."""
@@ -191,7 +245,9 @@ class FlowManager:
             await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
             self.supabase.update_state(wa_id, "inicio")
         else:
+            # Opção inválida - mostrar erro e reenviar menu de tipo de doação
             await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+            await self.mega_api.send_text(wa_id, DONATION_TYPE_MENU)
 
     async def handle_doacao_item(self, wa_id: str, text_content: str, estado: str, message: Dict[str, Any]):
         """Handle fluxo completo de doação de itens."""
@@ -219,7 +275,9 @@ class FlowManager:
                 await self.mega_api.send_text(wa_id, DONATION_TYPE_MENU)
                 self.supabase.update_state(wa_id, "doacao")
             else:
+                # Opção inválida - mostrar erro e reenviar menu de categorias
                 await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+                await self.mega_api.send_text(wa_id, DONATION_CATEGORY_MENU)
 
         # doacao_item_2: Estado dos itens
         elif estado_num == 2:
@@ -231,7 +289,9 @@ class FlowManager:
                 await self.mega_api.send_text(wa_id, DONATION_CATEGORY_MENU)
                 self.supabase.update_state(wa_id, "doacao_item_1")
             else:
+                # Opção inválida - mostrar erro e reenviar menu de estado dos itens
                 await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+                await self.mega_api.send_text(wa_id, DONATION_ITEM_CONDITION)
 
         # doacao_item_3: Solicitação de nome
         elif estado_num == 3:
@@ -260,9 +320,17 @@ class FlowManager:
                 await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
                 self.supabase.update_state(wa_id, "inicio")
             else:
-                # Nome corrigido - salvar e pedir confirmação novamente
-                self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
-                await self.mega_api.send_text(wa_id, DONATION_CONFIRM_NAME.format(nome=text_content))
+                # Opção inválida - mostrar erro e reenviar confirmação de nome
+                user_state = self.supabase.get_user_state(wa_id)
+                nome = user_state.get("mensagem_temp", "") if user_state else ""
+                if nome:
+                    await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+                    await self.mega_api.send_text(wa_id, DONATION_CONFIRM_NAME.format(nome=nome))
+                else:
+                    # Se não tem nome salvo, pedir novamente
+                    await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+                    await self.mega_api.send_text(wa_id, DONATION_ASK_NAME)
+                    self.supabase.update_state(wa_id, "doacao_item_3")
 
         # doacao_item_5: Solicitação de endereço
         elif estado_num == 5:
@@ -289,9 +357,17 @@ class FlowManager:
                 await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
                 self.supabase.update_state(wa_id, "inicio")
             else:
-                # Endereço corrigido
-                self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
-                await self.mega_api.send_text(wa_id, DONATION_CONFIRM_ADDRESS.format(endereco=text_content))
+                # Opção inválida - mostrar erro e reenviar confirmação de endereço
+                user_state = self.supabase.get_user_state(wa_id)
+                endereco = user_state.get("mensagem_temp", "") if user_state else ""
+                if endereco:
+                    await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+                    await self.mega_api.send_text(wa_id, DONATION_CONFIRM_ADDRESS.format(endereco=endereco))
+                else:
+                    # Se não tem endereço salvo, pedir novamente
+                    await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+                    await self.mega_api.send_text(wa_id, DONATION_ASK_ADDRESS)
+                    self.supabase.update_state(wa_id, "doacao_item_5")
 
         # doacao_item_7: Solicitação de WhatsApp
         elif estado_num == 7:
@@ -318,9 +394,17 @@ class FlowManager:
                 await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
                 self.supabase.update_state(wa_id, "inicio")
             else:
-                # Telefone corrigido
-                self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
-                await self.mega_api.send_text(wa_id, DONATION_CONFIRM_PHONE.format(telefone=text_content))
+                # Opção inválida - mostrar erro e reenviar confirmação de telefone
+                user_state = self.supabase.get_user_state(wa_id)
+                telefone = user_state.get("mensagem_temp", "") if user_state else ""
+                if telefone:
+                    await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+                    await self.mega_api.send_text(wa_id, DONATION_CONFIRM_PHONE.format(telefone=telefone))
+                else:
+                    # Se não tem telefone salvo, pedir novamente
+                    await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+                    await self.mega_api.send_text(wa_id, DONATION_ASK_PHONE)
+                    self.supabase.update_state(wa_id, "doacao_item_7")
 
         # doacao_item_9: Confirmação de email, depois horário, depois foto
         elif estado_num == 9:
@@ -368,7 +452,14 @@ class FlowManager:
                     await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
                     self.supabase.update_state(wa_id, "inicio")
                 else:
-                    await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+                    # Opção inválida - mostrar erro e reenviar confirmação de email
+                    email = user_state.get("mensagem_temp", "") if user_state else ""
+                    if email and "@" in email:
+                        await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+                        await self.mega_api.send_text(wa_id, DONATION_CONFIRM_EMAIL.format(email=email))
+                    else:
+                        await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+                        await self.mega_api.send_text(wa_id, DONATION_ASK_EMAIL)
             # Foto
             elif is_image:
                 # Foto recebida - fazer download e upload para Supabase Storage
@@ -423,8 +514,9 @@ class FlowManager:
                 await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
                 self.supabase.update_state(wa_id, "inicio")
             else:
-                # Esperando foto
-                await self.mega_api.send_text(wa_id, DONATION_PHOTO_NOT_RECEIVED)
+                # Opção inválida - mostrar erro e reenviar pergunta sobre mais fotos
+                await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+                await self.mega_api.send_text(wa_id, DONATION_ASK_MORE_PHOTOS)
 
     async def handle_acolhimento(self, wa_id: str, text_content: str):
         """Handle fluxo de acolhimento."""
@@ -437,7 +529,9 @@ class FlowManager:
             await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
             self.supabase.update_state(wa_id, "inicio")
         else:
+            # Opção inválida - mostrar erro e reenviar mensagem de acolhimento
             await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+            await self.mega_api.send_text(wa_id, ACOLHIMENTO_WELCOME)
 
     async def handle_lojas(self, wa_id: str, text_content: str):
         """Handle fluxo de lojas."""
@@ -450,7 +544,9 @@ class FlowManager:
             await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
             self.supabase.update_state(wa_id, "inicio")
         else:
+            # Opção inválida - mostrar erro e reenviar menu de lojas
             await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+            await self.mega_api.send_text(wa_id, LOJAS_MENU)
 
     async def handle_servicos(self, wa_id: str, text_content: str):
         """Handle fluxo de serviços."""
@@ -463,7 +559,9 @@ class FlowManager:
             await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
             self.supabase.update_state(wa_id, "inicio")
         else:
+            # Opção inválida - mostrar erro e reenviar menu de serviços
             await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+            await self.mega_api.send_text(wa_id, SERVICES_MENU)
 
     async def handle_fretes(self, wa_id: str, text_content: str):
         """Handle fluxo de fretes."""
@@ -476,4 +574,6 @@ class FlowManager:
             await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
             self.supabase.update_state(wa_id, "inicio")
         else:
+            # Opção inválida - mostrar erro e reenviar menu de fretes
             await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+            await self.mega_api.send_text(wa_id, FRETES_MENU)

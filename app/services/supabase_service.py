@@ -29,6 +29,8 @@ class SupabaseService:
             from datetime import datetime
             timezone = 'America/Sao_Paulo'
             
+            logger.info(f"💾 create_or_update_user chamado - wa_id: {wa_id}, updates: {updates}")
+            
             # Adicionar data e horário se não existirem
             if 'data' not in updates:
                 updates['data'] = datetime.now().strftime('%Y-%m-%d')
@@ -36,13 +38,21 @@ class SupabaseService:
                 updates['horario'] = datetime.now().strftime('%H:%M:%S')
             
             existing = self.get_user_state(wa_id)
+            logger.info(f"🔍 Usuário existente? {existing is not None}")
+            
             if existing:
-                self.client.table("conversas").update(updates).eq("wa_id", f"+{wa_id}").execute()
+                logger.info(f"🔄 Atualizando usuário existente: +{wa_id}")
+                logger.info(f"📝 Campos a atualizar: {updates}")
+                result = self.client.table("conversas").update(updates).eq("wa_id", f"+{wa_id}").execute()
+                logger.info(f"✅ Usuário atualizado: {result.data if hasattr(result, 'data') else 'OK'}")
             else:
+                logger.info(f"➕ Criando novo usuário: +{wa_id}")
                 data = {"wa_id": f"+{wa_id}", **updates}
-                self.client.table("conversas").insert(data).execute()
+                logger.info(f"📝 Dados a inserir: {data}")
+                result = self.client.table("conversas").insert(data).execute()
+                logger.info(f"✅ Usuário criado: {result.data if hasattr(result, 'data') else 'OK'}")
         except Exception as e:
-            logger.error(f"Erro ao atualizar usuário {wa_id}: {e}")
+            logger.error(f"❌ Erro ao atualizar usuário {wa_id}: {e}", exc_info=True)
 
     def update_state(self, wa_id: str, estado: str):
         """Atualiza apenas o estado do usuário."""

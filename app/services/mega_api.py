@@ -7,13 +7,22 @@ logger = logging.getLogger(__name__)
 
 class MegaApiService:
     def __init__(self):
-        self.base_url = settings.MEGA_API_URL
+        base_url = settings.MEGA_API_URL
+        
+        # Adicionar protocolo automaticamente se não tiver
+        if base_url and not base_url.startswith(("http://", "https://")):
+            logger.warning(f"⚠️ MEGA_API_URL sem protocolo. Adicionando https:// automaticamente")
+            base_url = f"https://{base_url}"
+        
+        self.base_url = base_url
         self.instance_key = settings.MEGA_API_INSTANCE_KEY
         self.token = settings.MEGA_API_TOKEN
         self.headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json"
         }
+        
+        logger.info(f"🔧 MegaAPI configurada - URL: {self.base_url}, Instance: {self.instance_key[:20]}...")
 
     async def send_text(self, to_number: str, text: str) -> Optional[Dict[str, Any]]:
         """Envia uma mensagem de texto simples."""
@@ -33,13 +42,15 @@ class MegaApiService:
         if not text:
             logger.warning("Texto da mensagem está vazio")
         
-        url = f"{self.base_url}/sendMessage/{self.instance_key}/text"
+        # URL correta da MegaAPI: /rest/sendMessage/{instance_key}/text
+        url = f"{self.base_url}/rest/sendMessage/{self.instance_key}/text"
         payload = {
             "messageData": {
                 "to": to_number,
                 "text": text
             }
         }
+        logger.info(f"📤 Enviando mensagem para {to_number} via {url}")
         
         async with httpx.AsyncClient() as client:
             try:
@@ -52,7 +63,8 @@ class MegaApiService:
 
     async def download_media(self, media_data: Dict[str, Any]) -> Optional[bytes]:
         """Baixa uma mídia (imagem, áudio, documento) da MegaAPI."""
-        url = f"{self.base_url}/downloadMediaMessage/{self.instance_key}"
+        # URL correta da MegaAPI: /rest/instance/downloadMediaMessage/{instance_key}
+        url = f"{self.base_url}/rest/instance/downloadMediaMessage/{self.instance_key}"
         payload = {
             "messageKeys": media_data
         }
