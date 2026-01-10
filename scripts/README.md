@@ -32,7 +32,7 @@ chmod +x scripts/test_supabase_connection.py
 #### Requisitos:
 
 - Python 3.7+
-- Variáveis de ambiente configuradas (`.env.local` ou `.env`)
+- Variáveis de ambiente configuradas (`.env`)
 - Dependências instaladas: `pip install -r requirements.txt`
 
 #### Exemplo de saída:
@@ -42,8 +42,8 @@ chmod +x scripts/test_supabase_connection.py
 TESTE DE CONEXÃO COM SUPABASE
 ============================================================
 
-📄 Carregando variáveis de ambiente de: /path/to/.env.local
-✅ Arquivo .env.local carregado!
+📄 Carregando variáveis de ambiente de: /path/to/.env
+✅ Arquivo .env carregado!
 
 ============================================================
 TESTE 1: Verificando Variáveis de Ambiente
@@ -92,7 +92,7 @@ RESUMO DOS TESTES
 #### Troubleshooting:
 
 **Erro: "Variáveis de ambiente não encontradas"**
-- Certifique-se de que o arquivo `.env.local` existe na raiz do projeto
+- Certifique-se de que o arquivo `.env` existe na raiz do projeto
 - Verifique se as variáveis estão nomeadas corretamente: `SUPABASE_URL` e `SUPABASE_KEY`
 
 **Erro: "ModuleNotFoundError: No module named 'supabase'"**

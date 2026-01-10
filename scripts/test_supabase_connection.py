@@ -43,7 +43,7 @@ def test_env_variables():
     print()
     if missing_vars:
         print(f"⚠️  Variáveis faltando: {', '.join(missing_vars)}")
-        print("   Certifique-se de que o arquivo .env.local está configurado corretamente.")
+        print("   Certifique-se de que o arquivo .env está configurado corretamente.")
         return False
     
     print("✅ Todas as variáveis de ambiente estão configuradas!")
@@ -181,22 +181,17 @@ def main():
     print("=" * 60)
     print()
     
-    # Carregar variáveis de ambiente do .env.local ou .env
+    # Carregar variáveis de ambiente do .env
     from dotenv import load_dotenv
     
-    env_file = root_dir / ".env.local"
-    env_file_alt = root_dir / ".env"
+    env_file = root_dir / ".env"
     
     if env_file.exists():
         print(f"📄 Carregando variáveis de ambiente de: {env_file}")
         load_dotenv(env_file)
-        print("✅ Arquivo .env.local carregado!")
-    elif env_file_alt.exists():
-        print(f"📄 Carregando variáveis de ambiente de: {env_file_alt}")
-        load_dotenv(env_file_alt)
         print("✅ Arquivo .env carregado!")
     else:
-        print(f"⚠️  Nenhum arquivo .env.local ou .env encontrado")
+        print(f"⚠️  Arquivo .env não encontrado")
         print("   Usando apenas variáveis de ambiente do sistema")
     
     print()
