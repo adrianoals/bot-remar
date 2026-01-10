@@ -17,6 +17,22 @@ class MegaApiService:
 
     async def send_text(self, to_number: str, text: str) -> Optional[Dict[str, Any]]:
         """Envia uma mensagem de texto simples."""
+        # Validações
+        if not self.base_url:
+            logger.error("MEGA_API_URL não está configurada no .env")
+            return None
+        
+        if not self.base_url.startswith(("http://", "https://")):
+            logger.error(f"MEGA_API_URL deve começar com http:// ou https://. Valor atual: {self.base_url}")
+            return None
+        
+        if not to_number:
+            logger.error("Número de destino (to_number) está vazio")
+            return None
+        
+        if not text:
+            logger.warning("Texto da mensagem está vazio")
+        
         url = f"{self.base_url}/sendMessage/{self.instance_key}/text"
         payload = {
             "messageData": {

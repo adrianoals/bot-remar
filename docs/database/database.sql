@@ -26,6 +26,12 @@ CREATE TABLE IF NOT EXISTS conversas (
     -- Horário da última interação (formato: HH:MM:SS)
     horario TIME,
     
+    -- Dados temporários durante o fluxo (nome, endereço, telefone, etc.)
+    mensagem_temp TEXT,
+    
+    -- Nome do usuário vindo do WhatsApp (pushName)
+    nome VARCHAR(255),
+    
     -- Timestamp de criação do registro
     criado_em TIMESTAMP DEFAULT NOW()
 );
@@ -40,6 +46,8 @@ COMMENT ON COLUMN conversas.wa_id IS 'WhatsApp ID do usuário (chave primária)'
 COMMENT ON COLUMN conversas.estado IS 'Estado atual da conversa no fluxo do chatbot';
 COMMENT ON COLUMN conversas.data IS 'Data da última interação';
 COMMENT ON COLUMN conversas.horario IS 'Horário da última interação';
+COMMENT ON COLUMN conversas.mensagem_temp IS 'Armazena dados temporários durante o fluxo (nome, endereço, telefone, etc.)';
+COMMENT ON COLUMN conversas.nome IS 'Nome do usuário vindo do WhatsApp (pushName)';
 COMMENT ON COLUMN conversas.criado_em IS 'Timestamp de criação do registro';
 
 -- ============================================================================

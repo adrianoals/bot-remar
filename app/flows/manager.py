@@ -81,6 +81,15 @@ class FlowManager:
             # Buscar estado atual do usuário
             user_state = self.supabase.get_user_state(wa_id)
             
+            # Atualizar data e horário a cada mensagem (como no n8n)
+            # Isso garante que sempre temos a última interação registrada
+            if user_state:
+                from datetime import datetime
+                self.supabase.create_or_update_user(wa_id, {
+                    "data": datetime.now().strftime('%Y-%m-%d'),
+                    "horario": datetime.now().strftime('%H:%M:%S')
+                })
+            
             # Se não tem estado ou é comando de início, começar fluxo
             if not user_state or text_content.lower() in ["oi", "ola", "olá", "começar", "inicio", "início"]:
                 await self.handle_initial_state(wa_id, push_name)
@@ -123,6 +132,7 @@ class FlowManager:
     async def handle_initial_state(self, wa_id: str, push_name: str):
         """Handle estado inicial - seleção de estado geográfico (Switch3)."""
         await self.mega_api.send_text(wa_id, STATE_SELECTION_MESSAGE)
+        # Salvar nome do WhatsApp (pushName) na tabela conversas, como no n8n
         self.supabase.create_or_update_user(wa_id, {
             "estado": "inicio",
             "nome": push_name or ""
@@ -227,7 +237,7 @@ class FlowManager:
         elif estado_num == 3:
             if text_content and len(text_content) > 2:
                 # Salvar nome temporariamente na tabela conversas e pedir confirmação
-                self.supabase.create_or_update_user(wa_id, {"Mensagem": text_content})
+                self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
                 await self.mega_api.send_text(wa_id, DONATION_CONFIRM_NAME.format(nome=text_content))
                 self.supabase.update_state(wa_id, "doacao_item_4")
             else:
@@ -238,7 +248,7 @@ class FlowManager:
             if text_content == "1":
                 # Confirmar nome - buscar da tabela conversas
                 user_state = self.supabase.get_user_state(wa_id)
-                nome = user_state.get("Mensagem", "") if user_state else ""
+                nome = user_state.get("mensagem_temp", "") if user_state else ""
                 if not nome:
                     await self.mega_api.send_text(wa_id, DONATION_ASK_NAME)
                     self.supabase.update_state(wa_id, "doacao_item_3")
@@ -251,13 +261,13 @@ class FlowManager:
                 self.supabase.update_state(wa_id, "inicio")
             else:
                 # Nome corrigido - salvar e pedir confirmação novamente
-                self.supabase.create_or_update_user(wa_id, {"Mensagem": text_content})
+                self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
                 await self.mega_api.send_text(wa_id, DONATION_CONFIRM_NAME.format(nome=text_content))
 
         # doacao_item_5: Solicitação de endereço
         elif estado_num == 5:
             if text_content and len(text_content) > 10:
-                self.supabase.create_or_update_user(wa_id, {"Mensagem": text_content})
+                self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
                 await self.mega_api.send_text(wa_id, DONATION_CONFIRM_ADDRESS.format(endereco=text_content))
                 self.supabase.update_state(wa_id, "doacao_item_6")
             else:
@@ -267,7 +277,7 @@ class FlowManager:
         elif estado_num == 6:
             if text_content == "1":
                 user_state = self.supabase.get_user_state(wa_id)
-                endereco = user_state.get("Mensagem", "") if user_state else ""
+                endereco = user_state.get("mensagem_temp", "") if user_state else ""
                 if endereco:
                     self.supabase.update_doacao(wa_id, {"endereco": endereco})
                     await self.mega_api.send_text(wa_id, DONATION_ASK_PHONE)
@@ -280,13 +290,13 @@ class FlowManager:
                 self.supabase.update_state(wa_id, "inicio")
             else:
                 # Endereço corrigido
-                self.supabase.create_or_update_user(wa_id, {"Mensagem": text_content})
+                self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
                 await self.mega_api.send_text(wa_id, DONATION_CONFIRM_ADDRESS.format(endereco=text_content))
 
         # doacao_item_7: Solicitação de WhatsApp
         elif estado_num == 7:
             if text_content and len(text_content) >= 10:
-                self.supabase.create_or_update_user(wa_id, {"Mensagem": text_content})
+                self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
                 await self.mega_api.send_text(wa_id, DONATION_CONFIRM_PHONE.format(telefone=text_content))
                 self.supabase.update_state(wa_id, "doacao_item_8")
             else:
@@ -296,7 +306,7 @@ class FlowManager:
         elif estado_num == 8:
             if text_content == "1":
                 user_state = self.supabase.get_user_state(wa_id)
-                telefone = user_state.get("Mensagem", "") if user_state else ""
+                telefone = user_state.get("mensagem_temp", "") if user_state else ""
                 if telefone:
                     self.supabase.update_doacao(wa_id, {"telefone": telefone})
                     await self.mega_api.send_text(wa_id, DONATION_ASK_EMAIL)
@@ -309,7 +319,7 @@ class FlowManager:
                 self.supabase.update_state(wa_id, "inicio")
             else:
                 # Telefone corrigido
-                self.supabase.create_or_update_user(wa_id, {"Mensagem": text_content})
+                self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
                 await self.mega_api.send_text(wa_id, DONATION_CONFIRM_PHONE.format(telefone=text_content))
 
         # doacao_item_9: Confirmação de email, depois horário, depois foto
@@ -328,7 +338,7 @@ class FlowManager:
                 # Email ainda não confirmado
                 if text_content == "1":
                     # Confirmar email da tabela conversas
-                    email = user_state.get("Mensagem", "") if user_state else ""
+                    email = user_state.get("mensagem_temp", "") if user_state else ""
                     if email and "@" in email:
                         self.supabase.update_doacao(wa_id, {"email": email})
                         await self.mega_api.send_text(wa_id, DONATION_ASK_TIME)
@@ -336,7 +346,7 @@ class FlowManager:
                         await self.mega_api.send_text(wa_id, DONATION_ASK_EMAIL)
                 elif "@" in text_content:
                     # Email fornecido, salvar temporariamente e pedir confirmação
-                    self.supabase.create_or_update_user(wa_id, {"Mensagem": text_content})
+                    self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
                     await self.mega_api.send_text(wa_id, DONATION_CONFIRM_EMAIL.format(email=text_content))
                 elif text_content == "0":
                     await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
@@ -346,7 +356,7 @@ class FlowManager:
                     if "@" not in text_content:
                         await self.mega_api.send_text(wa_id, DONATION_ASK_EMAIL)
                     else:
-                        self.supabase.create_or_update_user(wa_id, {"Mensagem": text_content})
+                        self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
                         await self.mega_api.send_text(wa_id, DONATION_CONFIRM_EMAIL.format(email=text_content))
             # Horário preferencial
             elif not doacao.get("horario_preferencial"):
