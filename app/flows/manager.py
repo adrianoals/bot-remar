@@ -326,17 +326,9 @@ class FlowManager:
                 await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
                 self.supabase.update_state(wa_id, "inicio")
             else:
-                # Opção inválida - mostrar erro e reenviar confirmação de nome
-                user_state = self.supabase.get_user_state(wa_id)
-                nome = user_state.get("mensagem_temp", "") if user_state else ""
-                if nome:
-                    await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-                    await self.mega_api.send_text(wa_id, DONATION_CONFIRM_NAME.format(nome=nome))
-                else:
-                    # Se não tem nome salvo, pedir novamente
-                    await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-                    await self.mega_api.send_text(wa_id, DONATION_ASK_NAME)
-                    self.supabase.update_state(wa_id, "doacao_item_3")
+                # Se não for 1 nem 0, assumir que é correção do nome
+                self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
+                await self.mega_api.send_text(wa_id, DONATION_CONFIRM_NAME.format(nome=text_content))
 
         # doacao_item_5: Solicitação de endereço
         elif estado_num == 5:
@@ -363,17 +355,9 @@ class FlowManager:
                 await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
                 self.supabase.update_state(wa_id, "inicio")
             else:
-                # Opção inválida - mostrar erro e reenviar confirmação de endereço
-                user_state = self.supabase.get_user_state(wa_id)
-                endereco = user_state.get("mensagem_temp", "") if user_state else ""
-                if endereco:
-                    await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-                    await self.mega_api.send_text(wa_id, DONATION_CONFIRM_ADDRESS.format(endereco=endereco))
-                else:
-                    # Se não tem endereço salvo, pedir novamente
-                    await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-                    await self.mega_api.send_text(wa_id, DONATION_ASK_ADDRESS)
-                    self.supabase.update_state(wa_id, "doacao_item_5")
+                # Se não for 1 nem 0, assumir que é correção do endereço
+                self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
+                await self.mega_api.send_text(wa_id, DONATION_CONFIRM_ADDRESS.format(endereco=text_content))
 
         # doacao_item_7: Solicitação de WhatsApp
         elif estado_num == 7:
@@ -400,17 +384,9 @@ class FlowManager:
                 await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
                 self.supabase.update_state(wa_id, "inicio")
             else:
-                # Opção inválida - mostrar erro e reenviar confirmação de telefone
-                user_state = self.supabase.get_user_state(wa_id)
-                telefone = user_state.get("mensagem_temp", "") if user_state else ""
-                if telefone:
-                    await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-                    await self.mega_api.send_text(wa_id, DONATION_CONFIRM_PHONE.format(telefone=telefone))
-                else:
-                    # Se não tem telefone salvo, pedir novamente
-                    await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-                    await self.mega_api.send_text(wa_id, DONATION_ASK_PHONE)
-                    self.supabase.update_state(wa_id, "doacao_item_7")
+                # Se não for 1 nem 0, assumir que é correção do telefone
+                self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
+                await self.mega_api.send_text(wa_id, DONATION_CONFIRM_PHONE.format(telefone=text_content))
 
         # doacao_item_9: Confirmação de email, depois horário, depois foto
         elif estado_num == 9:
@@ -442,30 +418,10 @@ class FlowManager:
                     await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
                     self.supabase.update_state(wa_id, "inicio")
                 else:
-                    # Email corrigido ou inválido
-                    if "@" not in text_content:
-                        await self.mega_api.send_text(wa_id, DONATION_ASK_EMAIL)
-                    else:
-                        self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
-                        await self.mega_api.send_text(wa_id, DONATION_CONFIRM_EMAIL.format(email=text_content))
-            # Horário preferencial
-            elif not doacao.get("horario_preferencial"):
-                if text_content in ["1", "2"]:
-                    horario = "Manhã" if text_content == "1" else "Tarde"
-                    self.supabase.update_doacao(wa_id, {"horario_preferencial": horario})
-                    await self.mega_api.send_text(wa_id, DONATION_ASK_PHOTO)
-                elif text_content == "0":
-                    await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
-                    self.supabase.update_state(wa_id, "inicio")
-                else:
-                    # Opção inválida - mostrar erro e reenviar confirmação de email
-                    email = user_state.get("mensagem_temp", "") if user_state else ""
-                    if email and "@" in email:
-                        await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-                        await self.mega_api.send_text(wa_id, DONATION_CONFIRM_EMAIL.format(email=email))
-                    else:
-                        await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-                        await self.mega_api.send_text(wa_id, DONATION_ASK_EMAIL)
+                    # Se não for 1 nem 0 nem email (com @), verificar se parece correção
+                    # Simplificado: Aceitar qualquer coisa como correção
+                    self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
+                    await self.mega_api.send_text(wa_id, DONATION_CONFIRM_EMAIL.format(email=text_content))
             # Foto
             elif is_image:
                 # Foto recebida - fazer download e upload para Supabase Storage

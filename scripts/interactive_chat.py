@@ -146,15 +146,22 @@ async def run_chat():
                 "isGroup": False
             }
 
-            # Se o usuário digitou [FOTO], vamos enganar o fluxo para achar que é imagem
-            if user_input.strip().upper() == "[FOTO]":
+            # Se o usuário digitou algo parecido com foto, vamos enganar o fluxo
+            normalized_input = user_input.strip().upper()
+            if normalized_input in ["[FOTO]", "FOTO", "(FOTO)", "ENVIA FOTO"]:
+                 print(f"{Colors.WARNING}   [Simulando envio de imagem...]{Colors.ENDC}")
                  data["message"] = {
                      "imageMessage": {
-                         "url": "https://...",
+                         "url": "https://fake-url.com/image.jpg",
                          "mimetype": "image/jpeg",
-                         "caption": "Segue a foto"
+                         "caption": "Segue a foto",
+                         "directPath": "/fake/path",
+                         "mediaKey": "fake-key"
                      }
                  }
+                 # Importante: limpar messageType pois agora é imageMessage
+                 # del data["message"]["conversation"] # Não é necessário pois sobrescrevemos o dict message
+                 data["messageType"] = "imageMessage"
 
             # Processar mensagem
             await manager.handle_message(data)
