@@ -1,0 +1,14 @@
+services:
+  remar-bot:
+    build: .
+    container_name: remar-chatbot
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - TZ=America/Sao_Paulo
+    volumes:
+      # Sincroniza o horário do container com o do host (bom para logs)
+      - /etc/localtime:/etc/localtime:ro
