@@ -140,6 +140,12 @@ class FlowManager:
             estado = user_state.get("estado", "inicio")
 
             # Roteamento principal por estado (Switch2)
+            if estado == "reset":
+                # Estado de reset/amortecimento: qualquer mensagem reinicia o fluxo sem erro
+                logger.info("🔄 Estado RESET: Reiniciando fluxo silenciosamente")
+                await self.handle_initial_state(wa_id, push_name)
+                return
+
             if estado == "inicio" or estado == "inicio0":
                 await self.handle_menu_principal(wa_id, text_content)
             elif estado == "doacao":
@@ -235,7 +241,7 @@ class FlowManager:
         if text_content == "1":
             # Doação em valor
             await self.mega_api.send_text(wa_id, DONATION_VALUE_MESSAGE)
-            self.supabase.update_state(wa_id, "inicio")
+            self.supabase.update_state(wa_id, "reset")
         elif text_content == "2":
             # Doação de item - mostrar categorias
             await self.mega_api.send_text(wa_id, DONATION_CATEGORY_MENU)
@@ -509,7 +515,7 @@ class FlowManager:
             elif text_content == "2":
                 # Finalizar
                 await self.mega_api.send_text(wa_id, DONATION_CONFIRMATION)
-                self.supabase.update_state(wa_id, "inicio")
+                self.supabase.update_state(wa_id, "reset")
             elif text_content == "0":
                 await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
                 self.supabase.update_state(wa_id, "inicio")
@@ -523,7 +529,7 @@ class FlowManager:
         if text_content == "1":
             # Solicitar mais informações
             await self.mega_api.send_text(wa_id, ACOLHIMENTO_CONTACT)
-            self.supabase.update_state(wa_id, "inicio")
+            self.supabase.update_state(wa_id, "reset")
         elif text_content == "2":
             # Voltar ao menu principal
             await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
@@ -538,7 +544,7 @@ class FlowManager:
         if text_content == "1":
             # Falar com atendente
             await self.mega_api.send_text(wa_id, LOJAS_CONTACT)
-            self.supabase.update_state(wa_id, "inicio")
+            self.supabase.update_state(wa_id, "reset")
         elif text_content == "2":
             # Voltar ao menu principal
             await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
@@ -553,7 +559,7 @@ class FlowManager:
         if text_content == "1":
             # Solicitar orçamento
             await self.mega_api.send_text(wa_id, SERVICES_CONTACT)
-            self.supabase.update_state(wa_id, "inicio")
+            self.supabase.update_state(wa_id, "reset")
         elif text_content == "2":
             # Voltar ao menu principal
             await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
@@ -568,7 +574,7 @@ class FlowManager:
         if text_content == "1":
             # Solicitar orçamento
             await self.mega_api.send_text(wa_id, FRETES_CONTACT)
-            self.supabase.update_state(wa_id, "inicio")
+            self.supabase.update_state(wa_id, "reset")
         elif text_content == "2":
             # Voltar ao menu principal
             await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
