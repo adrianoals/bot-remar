@@ -1,3 +1,4 @@
+from app.services.google_sheets_service import GoogleSheetsService
 from app.services.mega_api import MegaApiService
 from app.services.supabase_service import SupabaseService
 from app.templates.messages import (
@@ -39,6 +40,7 @@ class FlowManager:
     def __init__(self):
         self.mega_api = MegaApiService()
         self.supabase = SupabaseService()
+        self.sheets = GoogleSheetsService()
 
     def extract_text_content(self, message: Dict[str, Any]) -> str:
         """Extrai o conteúdo de texto de uma mensagem."""
@@ -242,6 +244,12 @@ class FlowManager:
             # Doação em valor
             await self.mega_api.send_text(wa_id, DONATION_VALUE_MESSAGE)
             self.supabase.update_state(wa_id, "reset")
+            try:
+                conv = self.supabase.get_user_state(wa_id)
+                if conv:
+                    self.sheets.append_doacao_valor(conv)
+            except Exception as e:
+                logger.warning(f"Google Sheets (doação valor): {e}")
         elif text_content == "2":
             # Doação de item - mostrar categorias
             await self.mega_api.send_text(wa_id, DONATION_CATEGORY_MENU)
@@ -472,6 +480,12 @@ class FlowManager:
                 # Finalizar
                 await self.mega_api.send_text(wa_id, DONATION_CONFIRMATION)
                 self.supabase.update_state(wa_id, "reset")
+                try:
+                    doacao = self.supabase.get_latest_doacao(wa_id)
+                    if doacao:
+                        self.sheets.append_doacao_item(doacao)
+                except Exception as e:
+                    logger.warning(f"Google Sheets (doação item): {e}")
             elif text_content == "0":
                 await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
                 self.supabase.update_state(wa_id, "inicio")
@@ -486,6 +500,12 @@ class FlowManager:
             # Solicitar mais informações
             await self.mega_api.send_text(wa_id, ACOLHIMENTO_CONTACT)
             self.supabase.update_state(wa_id, "reset")
+            try:
+                conv = self.supabase.get_user_state(wa_id)
+                if conv:
+                    self.sheets.append_acolhimento(conv)
+            except Exception as e:
+                logger.warning(f"Google Sheets (acolhimento): {e}")
         elif text_content == "2":
             # Voltar ao menu principal
             await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
@@ -501,6 +521,12 @@ class FlowManager:
             # Falar com atendente
             await self.mega_api.send_text(wa_id, LOJAS_CONTACT)
             self.supabase.update_state(wa_id, "reset")
+            try:
+                conv = self.supabase.get_user_state(wa_id)
+                if conv:
+                    self.sheets.append_lojas(conv)
+            except Exception as e:
+                logger.warning(f"Google Sheets (lojas): {e}")
         elif text_content == "2":
             # Voltar ao menu principal
             await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
@@ -516,6 +542,12 @@ class FlowManager:
             # Solicitar orçamento
             await self.mega_api.send_text(wa_id, SERVICES_CONTACT)
             self.supabase.update_state(wa_id, "reset")
+            try:
+                conv = self.supabase.get_user_state(wa_id)
+                if conv:
+                    self.sheets.append_servico(conv)
+            except Exception as e:
+                logger.warning(f"Google Sheets (serviço): {e}")
         elif text_content == "2":
             # Voltar ao menu principal
             await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
@@ -531,6 +563,12 @@ class FlowManager:
             # Solicitar orçamento
             await self.mega_api.send_text(wa_id, FRETES_CONTACT)
             self.supabase.update_state(wa_id, "reset")
+            try:
+                conv = self.supabase.get_user_state(wa_id)
+                if conv:
+                    self.sheets.append_fretes(conv)
+            except Exception as e:
+                logger.warning(f"Google Sheets (fretes): {e}")
         elif text_content == "2":
             # Voltar ao menu principal
             await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)

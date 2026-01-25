@@ -30,6 +30,11 @@ wheels/
 # Allow .env.example to be versioned
 !.env.example
 
+# Google Service Account (nunca versionar)
+google-service-account.json
+*-service-account*.json
+config/*-service-account*.json
+
 # IDE
 .vscode/
 .idea/
