@@ -1,0 +1,16 @@
+{
+  "instance_key": "megastart-test",
+  "jid": "5511999999999@s.whatsapp.net",
+  "lid": "123456789@lid",
+  "messageType": "message.ack",
+  "key": {
+    "remoteJid": "5511888888888@s.whatsapp.net",
+    "id": "ACK123",
+    "fromMe": true
+  },
+  "isGroup": false,
+  "update": {
+    "status": 3
+  },
+  "timestamp": 1770751673
+}

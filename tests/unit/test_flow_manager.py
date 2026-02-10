@@ -1,11 +1,11 @@
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 import logging
 import sys
 import os
 
 # Adiciona o diretório raiz ao path para importar os módulos da app
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from app.flows.manager import FlowManager
 from app.services.google_sheets_service import GoogleSheetsService

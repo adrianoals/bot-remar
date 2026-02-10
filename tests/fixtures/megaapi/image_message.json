@@ -1,0 +1,25 @@
+{
+  "instance_key": "megastart-test",
+  "jid": "5511999999999@s.whatsapp.net",
+  "lid": "123456789@lid",
+  "messageType": "imageMessage",
+  "key": {
+    "remoteJid": "244821742645489@lid",
+    "fromMe": false,
+    "id": "IMG123",
+    "senderLid": "244821742645489@lid",
+    "senderPn": "5511974124980@s.whatsapp.net"
+  },
+  "messageTimestamp": 1770752354,
+  "pushName": "Adriano",
+  "broadcast": false,
+  "message": {
+    "imageMessage": {
+      "url": "https://mmg.whatsapp.net/fake.enc",
+      "mimetype": "image/jpeg",
+      "mediaKey": "fake-media-key",
+      "directPath": "/v/t62.7118-24/fake.enc"
+    }
+  },
+  "isGroup": false
+}

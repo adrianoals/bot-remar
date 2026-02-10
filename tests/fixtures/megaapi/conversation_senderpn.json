@@ -1,0 +1,20 @@
+{
+  "instance_key": "megastart-test",
+  "jid": "5511999999999@s.whatsapp.net",
+  "lid": "123456789@lid",
+  "messageType": "conversation",
+  "key": {
+    "remoteJid": "244821742645489@lid",
+    "fromMe": false,
+    "id": "MSG123",
+    "senderLid": "244821742645489@lid",
+    "senderPn": "+55 (11) 97412-4980@s.whatsapp.net"
+  },
+  "messageTimestamp": 1770752360,
+  "pushName": "Adriano",
+  "broadcast": false,
+  "message": {
+    "conversation": "Oi"
+  },
+  "isGroup": false
+}
