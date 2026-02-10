@@ -7,14 +7,17 @@ logger = logging.getLogger(__name__)
 
 class MegaApiService:
     def __init__(self):
-        base_url = settings.MEGA_API_URL
+        base_url = (settings.MEGA_API_URL or "").strip()
         
         # Adicionar protocolo automaticamente se não tiver
         if base_url and not base_url.startswith(("http://", "https://")):
             logger.warning(f"⚠️ MEGA_API_URL sem protocolo. Adicionando https:// automaticamente")
             base_url = f"https://{base_url}"
         
-        self.base_url = base_url
+        # Normaliza URL para evitar duplicar "/rest" nos endpoints.
+        self.base_url = base_url.rstrip("/")
+        if self.base_url.endswith("/rest"):
+            self.base_url = self.base_url[:-5]
         self.instance_key = settings.MEGA_API_INSTANCE_KEY
         self.token = settings.MEGA_API_TOKEN
         self.headers = {

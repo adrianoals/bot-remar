@@ -173,6 +173,7 @@ DONATION_ASK_TIME = """*Associação Remar do Brasil*
 
 1️⃣ Manhã
 2️⃣ Tarde
+3️⃣ Noite
 0️⃣ Voltar ao Menu Inicial
 
 📲 Responda com o número correspondente à sua escolha.

@@ -330,7 +330,8 @@ class FlowManager:
                     await self.mega_api.send_text(to, DONATION_ASK_NAME)
                     self.supabase.update_state(wa_id, "doacao_item_3")
                     return
-                self.supabase.update_doacao(wa_id, {"nome": nome})
+                # n8n: doacoes.nome_responsavel
+                self.supabase.update_doacao(wa_id, {"nome_responsavel": nome})
                 await self.mega_api.send_text(to, DONATION_ASK_ADDRESS)
                 self.supabase.update_state(wa_id, "doacao_item_5")
             elif text_content == "0":
@@ -355,7 +356,8 @@ class FlowManager:
                 user_state = self.supabase.get_user_state(wa_id)
                 endereco = user_state.get("mensagem_temp", "") if user_state else ""
                 if endereco:
-                    self.supabase.update_doacao(wa_id, {"endereco": endereco})
+                    # n8n: doacoes.endereco_retirada
+                    self.supabase.update_doacao(wa_id, {"endereco_retirada": endereco})
                     await self.mega_api.send_text(to, DONATION_ASK_PHONE)
                     self.supabase.update_state(wa_id, "doacao_item_7")
                 else:
@@ -383,7 +385,8 @@ class FlowManager:
                 user_state = self.supabase.get_user_state(wa_id)
                 telefone = user_state.get("mensagem_temp", "") if user_state else ""
                 if telefone:
-                    self.supabase.update_doacao(wa_id, {"telefone": telefone})
+                    # n8n: doacoes.telefone_whatsapp
+                    self.supabase.update_doacao(wa_id, {"telefone_whatsapp": telefone})
                     await self.mega_api.send_text(to, DONATION_ASK_EMAIL)
                     self.supabase.update_state(wa_id, "doacao_item_9")
                 else:
@@ -407,11 +410,13 @@ class FlowManager:
             
             user_state = self.supabase.get_user_state(wa_id)
             
+            # 1) Primeiro: confirmar/salvar email
             if not doacao.get("email"):
                 if text_content == "1":
                     email = user_state.get("mensagem_temp", "") if user_state else ""
                     if email and "@" in email:
                         self.supabase.update_doacao(wa_id, {"email": email})
+                        # Depois do email, perguntar horário preferencial
                         await self.mega_api.send_text(to, DONATION_ASK_TIME)
                     else:
                         await self.mega_api.send_text(to, DONATION_ASK_EMAIL)
@@ -424,6 +429,21 @@ class FlowManager:
                 else:
                     self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
                     await self.mega_api.send_text(to, DONATION_CONFIRM_EMAIL.format(email=text_content))
+            # 2) Depois: horário preferencial (Manhã / Tarde / Noite)
+            elif not doacao.get("horario_preferencial"):
+                if text_content in ["1", "2", "3"]:
+                    mapa_horario = {"1": "Manhã", "2": "Tarde", "3": "Noite"}
+                    horario = mapa_horario[text_content]
+                    self.supabase.update_doacao(wa_id, {"horario_preferencial": horario})
+                    # Após escolher horário, pedir a primeira foto
+                    await self.mega_api.send_text(to, DONATION_ASK_PHOTO)
+                elif text_content == "0":
+                    await self.mega_api.send_text(to, WELCOME_MESSAGE)
+                    self.supabase.update_state(wa_id, "inicio")
+                else:
+                    # Resposta inválida para horário → perguntar novamente
+                    await self.mega_api.send_text(to, DONATION_ASK_TIME)
+            # 3) Fluxo de fotos (uma ou várias)
             elif is_image:
                 media_data = self.mega_api.extract_media_data(message)
                 if media_data:

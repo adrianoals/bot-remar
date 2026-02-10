@@ -153,7 +153,7 @@ class TestFlowSimulation(unittest.IsolatedAsyncioTestCase):
             await user_sends("1")
             state = mock_supabase.get_user_state(wa_id)
             self.assertEqual(state['estado'], 'doacao_item_5') # Pede endereço
-            self.assertEqual(mock_supabase.get_latest_doacao(wa_id)['nome'], 'Adriano')
+            self.assertEqual(mock_supabase.get_latest_doacao(wa_id)['nome_responsavel'], 'Adriano')
 
             print("\n=== SIMULAÇÃO CONCLUÍDA COM SUCESSO ===")
 
