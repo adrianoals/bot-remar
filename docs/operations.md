@@ -1,5 +1,40 @@
 # Operacao e Manutencao
 
+## Observabilidade
+
+### Healthcheck
+
+- Endpoint: `GET /health`
+- Verificacao local no host:
+
+```bash
+curl -fsS http://127.0.0.1:8000/health
+```
+
+### Logs da aplicacao
+
+- Formato recomendado em producao: JSON (`LOG_JSON=1`)
+- Nivel recomendado: `INFO` (`LOG_LEVEL=INFO`)
+- Acompanhar em tempo real:
+
+```bash
+docker compose logs -f --tail=200
+```
+
+### Rotacao de logs
+
+O compose ja limita logs por container:
+
+- `max-size: 10m`
+- `max-file: 5`
+
+### Monitor externo
+
+Recomendado monitorar:
+
+- `https://bot.sorteionovo.com.br/health`
+- alerta quando status != 200 ou timeout
+
 ## Limpeza de midia
 
 Como os arquivos ficam em `temp/YYYY-MM/`, a limpeza pode ser mensal.
