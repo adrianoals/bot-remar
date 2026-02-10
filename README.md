@@ -25,7 +25,7 @@ Referência histórica de fluxo:
 
 ## Stack
 
-- Python 3.10+
+- Python 3.12+
 - FastAPI + Uvicorn
 - Supabase Python Client
 - httpx
