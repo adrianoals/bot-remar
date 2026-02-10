@@ -126,6 +126,13 @@ class FlowManager:
         }
         return mapping.get(ext.lower(), (fallback_mimetype or "application/octet-stream"))
 
+    @staticmethod
+    def _bytes_signature(media_bytes: bytes, length: int = 16) -> str:
+        """Retorna assinatura hexadecimal dos primeiros bytes para diagnóstico."""
+        if not media_bytes:
+            return ""
+        return media_bytes[:length].hex()
+
     def extract_text_content(self, message: Dict[str, Any]) -> str:
         """Extrai o conteúdo de texto de uma mensagem."""
         if not message:
@@ -543,16 +550,33 @@ class FlowManager:
                         import tempfile
                         import os
                         import uuid
+                        from datetime import datetime
 
                         media_bytes = await self.mega_api.download_media(media_data)
                         if media_bytes:
                             file_ext = self._infer_media_extension(media_bytes, media_data.get("mimetype", ""))
                             content_type = self._content_type_from_extension(file_ext, media_data.get("mimetype", ""))
                             temp_file = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.{file_ext}")
+                            signature = self._bytes_signature(media_bytes)
+                            logger.info(
+                                "MEDIA DEBUG - wa_id=%s mimetype=%s ext_detected=%s content_type=%s bytes_len=%s signature=%s",
+                                wa_id,
+                                media_data.get("mimetype", ""),
+                                file_ext,
+                                content_type,
+                                len(media_bytes),
+                                signature,
+                            )
                             with open(temp_file, "wb") as f:
                                 f.write(media_bytes)
 
-                            file_name = f"{wa_id}/{uuid.uuid4()}.{file_ext}"
+                            month_prefix = datetime.now().strftime("%Y-%m")
+                            file_name = f"temp/{month_prefix}/{uuid.uuid4()}.{file_ext}"
+                            logger.info(
+                                "MEDIA DEBUG - upload_target bucket=%s file_name=%s",
+                                "whatsapp_media",
+                                file_name,
+                            )
                             media_url = self.supabase.upload_media(
                                 temp_file,
                                 bucket="whatsapp_media",

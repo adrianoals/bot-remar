@@ -2,6 +2,7 @@ import httpx
 from app.core.config import settings
 import logging
 from typing import Optional, Dict, Any
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -76,10 +77,91 @@ class MegaApiService:
             try:
                 response = await client.post(url, headers=self.headers, json=payload, timeout=30.0)
                 response.raise_for_status()
+                content_type = (response.headers.get("content-type") or "").lower()
+
+                # Algumas respostas da MegaAPI vêm em JSON com base64/url da mídia.
+                if "application/json" in content_type or response.content.startswith(b"{"):
+                    try:
+                        payload_json = response.json()
+                        media_bytes = await self._extract_media_bytes_from_payload(client, payload_json)
+                        if media_bytes:
+                            logger.info(
+                                "download_media: bytes extraídos de envelope JSON (keys=%s)",
+                                list(payload_json.keys()) if isinstance(payload_json, dict) else type(payload_json).__name__,
+                            )
+                            return media_bytes
+                        logger.error("download_media: resposta JSON sem bytes de mídia utilizáveis")
+                        return None
+                    except Exception as e:
+                        logger.error(f"download_media: erro ao parsear JSON da mídia: {e}")
+                        return None
+
+                # Quando vier binário direto.
                 return response.content
             except httpx.HTTPError as e:
                 logger.error(f"Erro ao baixar mídia: {e}")
                 return None
+
+    async def _extract_media_bytes_from_payload(self, client: httpx.AsyncClient, payload: Any) -> Optional[bytes]:
+        """Extrai bytes de mídia de payload JSON retornado pela MegaAPI."""
+
+        async def decode_candidate(value: Any) -> Optional[bytes]:
+            if value is None:
+                return None
+            if isinstance(value, bytes):
+                return value
+            if isinstance(value, dict):
+                # Tenta chaves comuns primeiro
+                for k in ("data", "base64", "file", "media", "buffer", "content", "body", "url", "mediaUrl"):
+                    if k in value:
+                        res = await decode_candidate(value.get(k))
+                        if res:
+                            return res
+                # Fallback recursivo
+                for v in value.values():
+                    res = await decode_candidate(v)
+                    if res:
+                        return res
+                return None
+            if isinstance(value, list):
+                for item in value:
+                    res = await decode_candidate(item)
+                    if res:
+                        return res
+                return None
+            if isinstance(value, str):
+                s = value.strip()
+                if not s:
+                    return None
+
+                # data URI: data:image/jpeg;base64,AAAA...
+                if s.startswith("data:") and ";base64," in s:
+                    try:
+                        return base64.b64decode(s.split(";base64,", 1)[1], validate=False)
+                    except Exception:
+                        return None
+
+                # URL da mídia (quando API retorna link em vez de bytes/base64)
+                if s.startswith("http://") or s.startswith("https://"):
+                    try:
+                        r = await client.get(s, timeout=30.0)
+                        r.raise_for_status()
+                        return r.content
+                    except Exception as e:
+                        logger.error(f"download_media: erro ao baixar mídia por URL direta: {e}")
+                        return None
+
+                # Base64 puro
+                try:
+                    decoded = base64.b64decode(s, validate=False)
+                    # Evita aceitar textos muito curtos que não são mídia real
+                    if decoded and len(decoded) > 32:
+                        return decoded
+                except Exception:
+                    return None
+            return None
+
+        return await decode_candidate(payload)
 
     def extract_media_data(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Extrai dados de mídia de uma mensagem."""
