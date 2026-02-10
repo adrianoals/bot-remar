@@ -70,14 +70,19 @@ class GoogleSheetsService:
             return
 
         try:
+            import os
             from google.oauth2 import service_account
             from googleapiclient.discovery import build
 
             creds = None
             if settings.GOOGLE_APPLICATION_CREDENTIALS and settings.GOOGLE_APPLICATION_CREDENTIALS.strip():
-                creds = service_account.Credentials.from_service_account_file(
-                    settings.GOOGLE_APPLICATION_CREDENTIALS.strip(), scopes=SCOPES
-                )
+                path = settings.GOOGLE_APPLICATION_CREDENTIALS.strip()
+                if not os.path.isabs(path):
+                    # Resolver em relação ao diretório de trabalho atual (raiz do projeto)
+                    path = os.path.join(os.getcwd(), path)
+                if not os.path.isfile(path):
+                    raise FileNotFoundError(f"Arquivo de credenciais não encontrado: {path}")
+                creds = service_account.Credentials.from_service_account_file(path, scopes=SCOPES)
             elif settings.GOOGLE_SHEETS_CREDENTIALS_JSON and settings.GOOGLE_SHEETS_CREDENTIALS_JSON.strip():
                 info = json.loads(settings.GOOGLE_SHEETS_CREDENTIALS_JSON.strip())
                 creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
@@ -117,73 +122,78 @@ class GoogleSheetsService:
         except Exception as e:
             logger.error(f"Google Sheets: erro ao adicionar linha na aba '{sheet_name}': {e}", exc_info=True)
 
-    def append_doacao_valor(self, conv: Dict[str, Any]) -> None:
+    def append_doacao_valor(self, conv: Dict[str, Any], telefone: Optional[str] = None) -> None:
         """Append na aba Doação Valor: Data, Horário, Telefone, Nome, Doação Valor = '-'."""
-        # conv: data, horario, wa_id, nome
+        # telefone: número real (reply_to/senderPn) quando disponível; senão wa_id da conversa
         row = [
             _fmt_data(conv.get("data")),
             _fmt_horario(conv.get("horario")),
-            conv.get("wa_id") or "",
+            (telefone or conv.get("wa_id") or "").strip(),
             conv.get("nome") or "",
             "-",
         ]
         self._append(SHEET_DOACAO_VALOR, row)
 
-    def append_acolhimento(self, conv: Dict[str, Any]) -> None:
+    def append_acolhimento(self, conv: Dict[str, Any], telefone: Optional[str] = None) -> None:
         """Append na aba Acolhimento: Data, Horário, Telefone, Nome, Acolhimento = 'Aguardando Acolhimento'."""
         row = [
             _fmt_data(conv.get("data")),
             _fmt_horario(conv.get("horario")),
-            conv.get("wa_id") or "",
+            (telefone or conv.get("wa_id") or "").strip(),
             conv.get("nome") or "",
             "Aguardando Acolhimento",
         ]
         self._append(SHEET_ACOLHIMENTO, row)
 
-    def append_lojas(self, conv: Dict[str, Any]) -> None:
+    def append_lojas(self, conv: Dict[str, Any], telefone: Optional[str] = None) -> None:
         """Append na aba Lojas Solidárias: Data, Horário, Telefone, Nome, Lojas = 'Contato para Lojas Soidárias'."""
         row = [
             _fmt_data(conv.get("data")),
             _fmt_horario(conv.get("horario")),
-            conv.get("wa_id") or "",
+            (telefone or conv.get("wa_id") or "").strip(),
             conv.get("nome") or "",
             "Contato para Lojas Soidárias",
         ]
         self._append(SHEET_LOJAS, row)
 
-    def append_servico(self, conv: Dict[str, Any]) -> None:
+    def append_servico(self, conv: Dict[str, Any], telefone: Optional[str] = None) -> None:
         """Append na aba Contratar Um Serviço: Data, Horário, Telefone, Nome, 'Contratar um Serviço' = 'Contato Para Serviço'."""
         row = [
             _fmt_data(conv.get("data")),
             _fmt_horario(conv.get("horario")),
-            conv.get("wa_id") or "",
+            (telefone or conv.get("wa_id") or "").strip(),
             conv.get("nome") or "",
             "Contato Para Serviço",
         ]
         self._append(SHEET_SERVICO, row)
 
-    def append_fretes(self, conv: Dict[str, Any]) -> None:
+    def append_fretes(self, conv: Dict[str, Any], telefone: Optional[str] = None) -> None:
         """Append na aba Fretes e Mudanças: Data, Horário, Telefone, Nome, 'Frees e Mudanças' = 'Contato Para Fretes e Mudanças'."""
         row = [
             _fmt_data(conv.get("data")),
             _fmt_horario(conv.get("horario")),
-            conv.get("wa_id") or "",
+            (telefone or conv.get("wa_id") or "").strip(),
             conv.get("nome") or "",
             "Contato Para Fretes e Mudanças",
         ]
         self._append(SHEET_FRETES, row)
 
-    def append_doacao_item(self, doacao: Dict[str, Any]) -> None:
+    def append_doacao_item(self, doacao: Dict[str, Any], telefone: Optional[str] = None) -> None:
         """
         Append na aba Doação Item.
+        telefone: número real (reply_to/senderPn) quando disponível; senão vazio.
         doacao: nome_responsavel, endereco_retirada, telefone_whatsapp, email, tipo_doacao, estado_doacao,
-                horario_preferencial, fotos
+                horario_preferencial, fotos (ou nome, endereco, telefone conforme tabela)
         """
+        nome = doacao.get("nome_responsavel") or doacao.get("nome") or ""
+        endereco = doacao.get("endereco_retirada") or doacao.get("endereco") or ""
+        tel_info = doacao.get("telefone_whatsapp") or doacao.get("telefone") or ""
         row = [
+            (telefone or "").strip(),
             doacao.get("email") or "",
-            doacao.get("nome_responsavel") or "",
-            doacao.get("telefone_whatsapp") or "",
-            doacao.get("endereco_retirada") or "",
+            nome,
+            tel_info,
+            endereco,
             doacao.get("tipo_doacao") or "",
             doacao.get("estado_doacao") or "",
             doacao.get("horario_preferencial") or "",

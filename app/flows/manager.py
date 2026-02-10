@@ -108,13 +108,21 @@ class FlowManager:
                 logger.error("❌ ERRO: wa_id está vazio! remoteJid não encontrado ou inválido")
                 logger.error(f"remote_jid completo: {remote_jid}")
                 return
+
+            # Destino das respostas: preferir número real (senderPn) para a MegaAPI entregar no mesmo chat
+            sender_pn = (key.get("senderPn") or "").strip()
+            reply_to = sender_pn.split("@")[0].strip() if sender_pn else wa_id
+            if reply_to != wa_id:
+                logger.info(f"📱 reply_to (senderPn): {reply_to} (wa_id para estado: {wa_id})")
+            else:
+                logger.info(f"📱 reply_to: {reply_to} (sem senderPn no payload)")
             
             text_content = self.extract_text_content(message).strip()
             logger.info(f"✅ Texto extraído: '{text_content}'")
 
             # Verificar comandos de admin
             if text_content.startswith("/"):
-                await self.handle_admin_command(wa_id, text_content, push_name)
+                await self.handle_admin_command(wa_id, text_content, push_name, reply_to)
                 return
 
             # Buscar estado atual do usuário
@@ -136,7 +144,7 @@ class FlowManager:
             # Se não tem estado ou é comando de início, começar fluxo
             if not user_state or text_content.lower() in ["oi", "ola", "olá", "começar", "inicio", "início"]:
                 logger.info("🚀 Iniciando novo fluxo (usuário novo ou comando de início)")
-                await self.handle_initial_state(wa_id, push_name)
+                await self.handle_initial_state(wa_id, push_name, reply_to)
                 return
 
             estado = user_state.get("estado", "inicio")
@@ -145,45 +153,44 @@ class FlowManager:
             if estado == "reset":
                 # Estado de reset/amortecimento: qualquer mensagem reinicia o fluxo sem erro
                 logger.info("🔄 Estado RESET: Reiniciando fluxo silenciosamente")
-                await self.handle_initial_state(wa_id, push_name)
+                await self.handle_initial_state(wa_id, push_name, reply_to)
                 return
 
             if estado == "inicio" or estado == "inicio0":
-                await self.handle_menu_principal(wa_id, text_content)
+                await self.handle_menu_principal(wa_id, text_content, reply_to)
             elif estado == "doacao":
-                await self.handle_doacao_tipo(wa_id, text_content)
+                await self.handle_doacao_tipo(wa_id, text_content, reply_to)
             elif estado.startswith("doacao_item_"):
-                await self.handle_doacao_item(wa_id, text_content, estado, message)
+                await self.handle_doacao_item(wa_id, text_content, estado, message, reply_to)
             elif estado == "acolhimento":
-                await self.handle_acolhimento(wa_id, text_content)
+                await self.handle_acolhimento(wa_id, text_content, reply_to)
             elif estado == "lojas":
-                await self.handle_lojas(wa_id, text_content)
+                await self.handle_lojas(wa_id, text_content, reply_to)
             elif estado == "servico":
-                await self.handle_servicos(wa_id, text_content)
+                await self.handle_servicos(wa_id, text_content, reply_to)
             elif estado == "fretes":
-                await self.handle_fretes(wa_id, text_content)
+                await self.handle_fretes(wa_id, text_content, reply_to)
             else:
                 # Estado desconhecido, voltar ao início
-                await self.handle_initial_state(wa_id, push_name)
+                await self.handle_initial_state(wa_id, push_name, reply_to)
 
         except Exception as e:
             logger.error(f"Erro no processamento: {e}", exc_info=True)
 
-    async def handle_admin_command(self, wa_id: str, command: str, push_name: str):
+    async def handle_admin_command(self, wa_id: str, command: str, push_name: str, reply_to: str):
         """Trata comandos de administrador."""
+        to = reply_to or wa_id
         if "/chat" in command.lower():
-            # Permitir chat manual (implementar se necessário)
-            await self.mega_api.send_text(wa_id, "Modo chat manual ativado.")
+            await self.mega_api.send_text(to, "Modo chat manual ativado.")
         elif "/nochat" in command.lower():
-            # Resetar para modo automático
             self.supabase.update_state(wa_id, "inicio")
-            await self.mega_api.send_text(wa_id, "Modo automático ativado.")
+            await self.mega_api.send_text(to, "Modo automático ativado.")
 
-    async def handle_initial_state(self, wa_id: str, push_name: str):
+    async def handle_initial_state(self, wa_id: str, push_name: str, reply_to: Optional[str] = None):
         """Handle estado inicial - seleção de estado geográfico (Switch3)."""
+        to = (reply_to or wa_id).strip()
         logger.info(f"📝 Salvando dados iniciais - wa_id: {wa_id}, nome: {push_name}")
         
-        # Salvar nome do WhatsApp (pushName) na tabela conversas, como no n8n
         try:
             self.supabase.create_or_update_user(wa_id, {
                 "estado": "inicio",
@@ -193,10 +200,9 @@ class FlowManager:
         except Exception as e:
             logger.error(f"❌ Erro ao salvar dados iniciais: {e}", exc_info=True)
         
-        # Enviar mensagem inicial (menu principal) - como no fluxo original n8n
         try:
-            logger.info(f"📤 Enviando mensagem de boas-vindas (menu principal) para {wa_id}")
-            result = await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
+            logger.info(f"📤 Enviando mensagem de boas-vindas (menu principal) para {to}")
+            result = await self.mega_api.send_text(to, WELCOME_MESSAGE)
             if result:
                 logger.info("✅ Mensagem enviada com sucesso")
             else:
@@ -204,67 +210,64 @@ class FlowManager:
         except Exception as e:
             logger.error(f"❌ Erro ao enviar mensagem: {e}", exc_info=True)
 
-    async def handle_menu_principal(self, wa_id: str, text_content: str):
+    async def handle_menu_principal(self, wa_id: str, text_content: str, reply_to: Optional[str] = None):
         """Handle menu principal (Switch4)."""
+        to = (reply_to or wa_id).strip()
         logger.info(f"📋 Processando menu principal - texto: '{text_content}'")
         
-        # Menu principal (Switch4)
         if text_content == "1":
             logger.info("📦 Opção 1 selecionada: Doação")
             self.supabase.update_state(wa_id, "doacao")
-            await self.mega_api.send_text(wa_id, DONATION_TYPE_MENU)
+            await self.mega_api.send_text(to, DONATION_TYPE_MENU)
         elif text_content == "2":
             logger.info("🏠 Opção 2 selecionada: Acolhimento")
             self.supabase.update_state(wa_id, "acolhimento")
-            await self.mega_api.send_text(wa_id, ACOLHIMENTO_WELCOME)
+            await self.mega_api.send_text(to, ACOLHIMENTO_WELCOME)
         elif text_content == "3":
             logger.info("🛒 Opção 3 selecionada: Lojas")
             self.supabase.update_state(wa_id, "lojas")
-            await self.mega_api.send_text(wa_id, LOJAS_MENU)
+            await self.mega_api.send_text(to, LOJAS_MENU)
         elif text_content == "4":
             logger.info("🔧 Opção 4 selecionada: Serviços")
             self.supabase.update_state(wa_id, "servico")
-            await self.mega_api.send_text(wa_id, SERVICES_MENU)
+            await self.mega_api.send_text(to, SERVICES_MENU)
         elif text_content == "5":
             logger.info("🚚 Opção 5 selecionada: Fretes")
             self.supabase.update_state(wa_id, "fretes")
-            await self.mega_api.send_text(wa_id, FRETES_MENU)
+            await self.mega_api.send_text(to, FRETES_MENU)
         elif text_content == "0":
             logger.info("🔄 Opção 0 selecionada: Voltar ao início")
-            await self.handle_initial_state(wa_id, "")
+            await self.handle_initial_state(wa_id, "", reply_to)
         else:
-            # Texto não é uma opção válida - mostrar mensagem de erro e depois o menu
             logger.info(f"⚠️ Opção inválida: '{text_content}'. Mostrando mensagem de erro e menu")
-            await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-            await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
+            await self.mega_api.send_text(to, ERROR_INVALID_OPTION)
+            await self.mega_api.send_text(to, WELCOME_MESSAGE)
 
-    async def handle_doacao_tipo(self, wa_id: str, text_content: str):
+    async def handle_doacao_tipo(self, wa_id: str, text_content: str, reply_to: Optional[str] = None):
         """Handle tipo de doação (Switch5)."""
+        to = (reply_to or wa_id).strip()
         if text_content == "1":
-            # Doação em valor
-            await self.mega_api.send_text(wa_id, DONATION_VALUE_MESSAGE)
+            await self.mega_api.send_text(to, DONATION_VALUE_MESSAGE)
             self.supabase.update_state(wa_id, "reset")
             try:
                 conv = self.supabase.get_user_state(wa_id)
                 if conv:
-                    self.sheets.append_doacao_valor(conv)
+                    self.sheets.append_doacao_valor(conv, telefone=reply_to or to)
             except Exception as e:
                 logger.warning(f"Google Sheets (doação valor): {e}")
         elif text_content == "2":
-            # Doação de item - mostrar categorias
-            await self.mega_api.send_text(wa_id, DONATION_CATEGORY_MENU)
+            await self.mega_api.send_text(to, DONATION_CATEGORY_MENU)
             self.supabase.update_state(wa_id, "doacao_item_1")
         elif text_content == "0":
-            # Voltar ao menu anterior
-            await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
+            await self.mega_api.send_text(to, WELCOME_MESSAGE)
             self.supabase.update_state(wa_id, "inicio")
         else:
-            # Opção inválida - mostrar erro e reenviar menu de tipo de doação
-            await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-            await self.mega_api.send_text(wa_id, DONATION_TYPE_MENU)
+            await self.mega_api.send_text(to, ERROR_INVALID_OPTION)
+            await self.mega_api.send_text(to, DONATION_TYPE_MENU)
 
-    async def handle_doacao_item(self, wa_id: str, text_content: str, estado: str, message: Dict[str, Any]):
+    async def handle_doacao_item(self, wa_id: str, text_content: str, estado: str, message: Dict[str, Any], reply_to: Optional[str] = None):
         """Handle fluxo completo de doação de itens."""
+        to = (reply_to or wa_id).strip()
         estado_num = int(estado.split("_")[-1]) if estado.split("_")[-1].isdigit() else 0
 
         # Verificar se é imagem
@@ -283,69 +286,64 @@ class FlowManager:
             if text_content in categorias:
                 tipo_doacao = categorias[text_content]
                 self.supabase.create_doacao(wa_id, tipo_doacao)
-                await self.mega_api.send_text(wa_id, DONATION_ITEM_CONDITION)
+                await self.mega_api.send_text(to, DONATION_ITEM_CONDITION)
                 self.supabase.update_state(wa_id, "doacao_item_2")
             elif text_content == "0":
-                await self.mega_api.send_text(wa_id, DONATION_TYPE_MENU)
+                await self.mega_api.send_text(to, DONATION_TYPE_MENU)
                 self.supabase.update_state(wa_id, "doacao")
             else:
-                # Opção inválida - mostrar erro e reenviar menu de categorias
-                await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-                await self.mega_api.send_text(wa_id, DONATION_CATEGORY_MENU)
+                await self.mega_api.send_text(to, ERROR_INVALID_OPTION)
+                await self.mega_api.send_text(to, DONATION_CATEGORY_MENU)
 
         # doacao_item_2: Estado dos itens
         elif estado_num == 2:
             if text_content in ["1", "2", "3", "4", "5"]:
                 self.supabase.update_doacao(wa_id, {"estado_doacao": text_content})
-                await self.mega_api.send_text(wa_id, DONATION_ASK_NAME)
+                await self.mega_api.send_text(to, DONATION_ASK_NAME)
                 self.supabase.update_state(wa_id, "doacao_item_3")
             elif text_content == "0":
-                await self.mega_api.send_text(wa_id, DONATION_CATEGORY_MENU)
+                await self.mega_api.send_text(to, DONATION_CATEGORY_MENU)
                 self.supabase.update_state(wa_id, "doacao_item_1")
             else:
-                # Opção inválida - mostrar erro e reenviar menu de estado dos itens
-                await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-                await self.mega_api.send_text(wa_id, DONATION_ITEM_CONDITION)
+                await self.mega_api.send_text(to, ERROR_INVALID_OPTION)
+                await self.mega_api.send_text(to, DONATION_ITEM_CONDITION)
 
         # doacao_item_3: Solicitação de nome
         elif estado_num == 3:
             if text_content and len(text_content) > 2:
-                # Salvar nome temporariamente na tabela conversas e pedir confirmação
                 self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
-                await self.mega_api.send_text(wa_id, DONATION_CONFIRM_NAME.format(nome=text_content))
+                await self.mega_api.send_text(to, DONATION_CONFIRM_NAME.format(nome=text_content))
                 self.supabase.update_state(wa_id, "doacao_item_4")
             else:
-                await self.mega_api.send_text(wa_id, DONATION_ASK_NAME)
+                await self.mega_api.send_text(to, DONATION_ASK_NAME)
 
         # doacao_item_4: Confirmação de nome
         elif estado_num == 4:
             if text_content == "1":
-                # Confirmar nome - buscar da tabela conversas
                 user_state = self.supabase.get_user_state(wa_id)
                 nome = user_state.get("mensagem_temp", "") if user_state else ""
                 if not nome:
-                    await self.mega_api.send_text(wa_id, DONATION_ASK_NAME)
+                    await self.mega_api.send_text(to, DONATION_ASK_NAME)
                     self.supabase.update_state(wa_id, "doacao_item_3")
                     return
                 self.supabase.update_doacao(wa_id, {"nome": nome})
-                await self.mega_api.send_text(wa_id, DONATION_ASK_ADDRESS)
+                await self.mega_api.send_text(to, DONATION_ASK_ADDRESS)
                 self.supabase.update_state(wa_id, "doacao_item_5")
             elif text_content == "0":
-                await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
+                await self.mega_api.send_text(to, WELCOME_MESSAGE)
                 self.supabase.update_state(wa_id, "inicio")
             else:
-                # Se não for 1 nem 0, assumir que é correção do nome
                 self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
-                await self.mega_api.send_text(wa_id, DONATION_CONFIRM_NAME.format(nome=text_content))
+                await self.mega_api.send_text(to, DONATION_CONFIRM_NAME.format(nome=text_content))
 
         # doacao_item_5: Solicitação de endereço
         elif estado_num == 5:
             if text_content and len(text_content) > 10:
                 self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
-                await self.mega_api.send_text(wa_id, DONATION_CONFIRM_ADDRESS.format(endereco=text_content))
+                await self.mega_api.send_text(to, DONATION_CONFIRM_ADDRESS.format(endereco=text_content))
                 self.supabase.update_state(wa_id, "doacao_item_6")
             else:
-                await self.mega_api.send_text(wa_id, DONATION_ASK_ADDRESS)
+                await self.mega_api.send_text(to, DONATION_ASK_ADDRESS)
 
         # doacao_item_6: Confirmação de endereço
         elif estado_num == 6:
@@ -354,27 +352,26 @@ class FlowManager:
                 endereco = user_state.get("mensagem_temp", "") if user_state else ""
                 if endereco:
                     self.supabase.update_doacao(wa_id, {"endereco": endereco})
-                    await self.mega_api.send_text(wa_id, DONATION_ASK_PHONE)
+                    await self.mega_api.send_text(to, DONATION_ASK_PHONE)
                     self.supabase.update_state(wa_id, "doacao_item_7")
                 else:
-                    await self.mega_api.send_text(wa_id, DONATION_ASK_ADDRESS)
+                    await self.mega_api.send_text(to, DONATION_ASK_ADDRESS)
                     self.supabase.update_state(wa_id, "doacao_item_5")
             elif text_content == "0":
-                await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
+                await self.mega_api.send_text(to, WELCOME_MESSAGE)
                 self.supabase.update_state(wa_id, "inicio")
             else:
-                # Se não for 1 nem 0, assumir que é correção do endereço
                 self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
-                await self.mega_api.send_text(wa_id, DONATION_CONFIRM_ADDRESS.format(endereco=text_content))
+                await self.mega_api.send_text(to, DONATION_CONFIRM_ADDRESS.format(endereco=text_content))
 
         # doacao_item_7: Solicitação de WhatsApp
         elif estado_num == 7:
             if text_content and len(text_content) >= 10:
                 self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
-                await self.mega_api.send_text(wa_id, DONATION_CONFIRM_PHONE.format(telefone=text_content))
+                await self.mega_api.send_text(to, DONATION_CONFIRM_PHONE.format(telefone=text_content))
                 self.supabase.update_state(wa_id, "doacao_item_8")
             else:
-                await self.mega_api.send_text(wa_id, DONATION_ASK_PHONE)
+                await self.mega_api.send_text(to, DONATION_ASK_PHONE)
 
         # doacao_item_8: Confirmação de WhatsApp
         elif estado_num == 8:
@@ -383,79 +380,65 @@ class FlowManager:
                 telefone = user_state.get("mensagem_temp", "") if user_state else ""
                 if telefone:
                     self.supabase.update_doacao(wa_id, {"telefone": telefone})
-                    await self.mega_api.send_text(wa_id, DONATION_ASK_EMAIL)
+                    await self.mega_api.send_text(to, DONATION_ASK_EMAIL)
                     self.supabase.update_state(wa_id, "doacao_item_9")
                 else:
-                    await self.mega_api.send_text(wa_id, DONATION_ASK_PHONE)
+                    await self.mega_api.send_text(to, DONATION_ASK_PHONE)
                     self.supabase.update_state(wa_id, "doacao_item_7")
             elif text_content == "0":
-                await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
+                await self.mega_api.send_text(to, WELCOME_MESSAGE)
                 self.supabase.update_state(wa_id, "inicio")
             else:
-                # Se não for 1 nem 0, assumir que é correção do telefone
                 self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
-                await self.mega_api.send_text(wa_id, DONATION_CONFIRM_PHONE.format(telefone=text_content))
+                await self.mega_api.send_text(to, DONATION_CONFIRM_PHONE.format(telefone=text_content))
 
         # doacao_item_9: Confirmação de email, depois horário, depois foto
         elif estado_num == 9:
             doacao = self.supabase.get_latest_doacao(wa_id)
             
             if not doacao:
-                await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
+                await self.mega_api.send_text(to, ERROR_INVALID_OPTION)
                 self.supabase.update_state(wa_id, "inicio")
                 return
             
             user_state = self.supabase.get_user_state(wa_id)
             
-            # Verificar se email foi confirmado
             if not doacao.get("email"):
-                # Email ainda não confirmado
                 if text_content == "1":
-                    # Confirmar email da tabela conversas
                     email = user_state.get("mensagem_temp", "") if user_state else ""
                     if email and "@" in email:
                         self.supabase.update_doacao(wa_id, {"email": email})
-                        await self.mega_api.send_text(wa_id, DONATION_ASK_TIME)
+                        await self.mega_api.send_text(to, DONATION_ASK_TIME)
                     else:
-                        await self.mega_api.send_text(wa_id, DONATION_ASK_EMAIL)
+                        await self.mega_api.send_text(to, DONATION_ASK_EMAIL)
                 elif "@" in text_content:
-                    # Email fornecido, salvar temporariamente e pedir confirmação
                     self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
-                    await self.mega_api.send_text(wa_id, DONATION_CONFIRM_EMAIL.format(email=text_content))
+                    await self.mega_api.send_text(to, DONATION_CONFIRM_EMAIL.format(email=text_content))
                 elif text_content == "0":
-                    await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
+                    await self.mega_api.send_text(to, WELCOME_MESSAGE)
                     self.supabase.update_state(wa_id, "inicio")
                 else:
-                    # Se não for 1 nem 0 nem email (com @), verificar se parece correção
-                    # Simplificado: Aceitar qualquer coisa como correção
                     self.supabase.create_or_update_user(wa_id, {"mensagem_temp": text_content})
-                    await self.mega_api.send_text(wa_id, DONATION_CONFIRM_EMAIL.format(email=text_content))
-            # Foto
+                    await self.mega_api.send_text(to, DONATION_CONFIRM_EMAIL.format(email=text_content))
             elif is_image:
-                # Foto recebida - fazer download e upload para Supabase Storage
                 media_data = self.mega_api.extract_media_data(message)
                 if media_data:
                     try:
-                        # Fazer download da mídia
                         import tempfile
                         import os
                         import uuid
                         
-                        # Criar arquivo temporário
                         file_ext = media_data.get("mimetype", "image/jpeg").split("/")[-1]
                         if file_ext == "jpeg":
                             file_ext = "jpg"
                         temp_file = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.{file_ext}")
                         
-                        # Download
                         success = await self.mega_api.download_and_save_media(media_data, temp_file)
                         if success:
-                                # Upload para Supabase Storage
                             file_name = f"{wa_id}/{uuid.uuid4()}.{file_ext}"
                             media_url = self.supabase.upload_media(temp_file, bucket="whatsapp_media", file_name=file_name)
                             
                             if media_url:
-                                # Salvar URL na doação
                                 doacao_atual = self.supabase.get_latest_doacao(wa_id)
                                 fotos = doacao_atual.get("fotos", []) if doacao_atual else []
                                 if not isinstance(fotos, list):
@@ -464,116 +447,104 @@ class FlowManager:
                                 self.supabase.update_doacao(wa_id, {"fotos": fotos})
                                 logger.info(f"Foto salva para {wa_id}: {media_url}")
                             
-                            # Limpar arquivo temporário
                             try:
                                 os.remove(temp_file)
-                            except:
+                            except Exception:
                                 pass
                     except Exception as e:
                         logger.error(f"Erro ao processar foto de {wa_id}: {e}")
                 
-                await self.mega_api.send_text(wa_id, DONATION_ASK_MORE_PHOTOS)
+                await self.mega_api.send_text(to, DONATION_ASK_MORE_PHOTOS)
             elif text_content == "1":
-                # Adicionar mais foto
-                await self.mega_api.send_text(wa_id, DONATION_ASK_PHOTO)
+                await self.mega_api.send_text(to, DONATION_ASK_PHOTO)
             elif text_content == "2":
-                # Finalizar
-                await self.mega_api.send_text(wa_id, DONATION_CONFIRMATION)
+                await self.mega_api.send_text(to, DONATION_CONFIRMATION)
                 self.supabase.update_state(wa_id, "reset")
                 try:
                     doacao = self.supabase.get_latest_doacao(wa_id)
                     if doacao:
-                        self.sheets.append_doacao_item(doacao)
+                        self.sheets.append_doacao_item(doacao, telefone=reply_to or to)
                 except Exception as e:
                     logger.warning(f"Google Sheets (doação item): {e}")
             elif text_content == "0":
-                await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
+                await self.mega_api.send_text(to, WELCOME_MESSAGE)
                 self.supabase.update_state(wa_id, "inicio")
             else:
-                # Opção inválida - mostrar erro e reenviar pergunta sobre mais fotos
-                await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-                await self.mega_api.send_text(wa_id, DONATION_ASK_MORE_PHOTOS)
+                await self.mega_api.send_text(to, ERROR_INVALID_OPTION)
+                await self.mega_api.send_text(to, DONATION_ASK_MORE_PHOTOS)
 
-    async def handle_acolhimento(self, wa_id: str, text_content: str):
+    async def handle_acolhimento(self, wa_id: str, text_content: str, reply_to: Optional[str] = None):
         """Handle fluxo de acolhimento."""
+        to = (reply_to or wa_id).strip()
         if text_content == "1":
-            # Solicitar mais informações
-            await self.mega_api.send_text(wa_id, ACOLHIMENTO_CONTACT)
+            await self.mega_api.send_text(to, ACOLHIMENTO_CONTACT)
             self.supabase.update_state(wa_id, "reset")
             try:
                 conv = self.supabase.get_user_state(wa_id)
                 if conv:
-                    self.sheets.append_acolhimento(conv)
+                    self.sheets.append_acolhimento(conv, telefone=reply_to or to)
             except Exception as e:
                 logger.warning(f"Google Sheets (acolhimento): {e}")
         elif text_content == "2":
-            # Voltar ao menu principal
-            await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
+            await self.mega_api.send_text(to, WELCOME_MESSAGE)
             self.supabase.update_state(wa_id, "inicio")
         else:
-            # Opção inválida - mostrar erro e reenviar mensagem de acolhimento
-            await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-            await self.mega_api.send_text(wa_id, ACOLHIMENTO_WELCOME)
+            await self.mega_api.send_text(to, ERROR_INVALID_OPTION)
+            await self.mega_api.send_text(to, ACOLHIMENTO_WELCOME)
 
-    async def handle_lojas(self, wa_id: str, text_content: str):
+    async def handle_lojas(self, wa_id: str, text_content: str, reply_to: Optional[str] = None):
         """Handle fluxo de lojas."""
+        to = (reply_to or wa_id).strip()
         if text_content == "1":
-            # Falar com atendente
-            await self.mega_api.send_text(wa_id, LOJAS_CONTACT)
+            await self.mega_api.send_text(to, LOJAS_CONTACT)
             self.supabase.update_state(wa_id, "reset")
             try:
                 conv = self.supabase.get_user_state(wa_id)
                 if conv:
-                    self.sheets.append_lojas(conv)
+                    self.sheets.append_lojas(conv, telefone=reply_to or to)
             except Exception as e:
                 logger.warning(f"Google Sheets (lojas): {e}")
         elif text_content == "2":
-            # Voltar ao menu principal
-            await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
+            await self.mega_api.send_text(to, WELCOME_MESSAGE)
             self.supabase.update_state(wa_id, "inicio")
         else:
-            # Opção inválida - mostrar erro e reenviar menu de lojas
-            await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-            await self.mega_api.send_text(wa_id, LOJAS_MENU)
+            await self.mega_api.send_text(to, ERROR_INVALID_OPTION)
+            await self.mega_api.send_text(to, LOJAS_MENU)
 
-    async def handle_servicos(self, wa_id: str, text_content: str):
+    async def handle_servicos(self, wa_id: str, text_content: str, reply_to: Optional[str] = None):
         """Handle fluxo de serviços."""
+        to = (reply_to or wa_id).strip()
         if text_content == "1":
-            # Solicitar orçamento
-            await self.mega_api.send_text(wa_id, SERVICES_CONTACT)
+            await self.mega_api.send_text(to, SERVICES_CONTACT)
             self.supabase.update_state(wa_id, "reset")
             try:
                 conv = self.supabase.get_user_state(wa_id)
                 if conv:
-                    self.sheets.append_servico(conv)
+                    self.sheets.append_servico(conv, telefone=reply_to or to)
             except Exception as e:
                 logger.warning(f"Google Sheets (serviço): {e}")
         elif text_content == "2":
-            # Voltar ao menu principal
-            await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
+            await self.mega_api.send_text(to, WELCOME_MESSAGE)
             self.supabase.update_state(wa_id, "inicio")
         else:
-            # Opção inválida - mostrar erro e reenviar menu de serviços
-            await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-            await self.mega_api.send_text(wa_id, SERVICES_MENU)
+            await self.mega_api.send_text(to, ERROR_INVALID_OPTION)
+            await self.mega_api.send_text(to, SERVICES_MENU)
 
-    async def handle_fretes(self, wa_id: str, text_content: str):
+    async def handle_fretes(self, wa_id: str, text_content: str, reply_to: Optional[str] = None):
         """Handle fluxo de fretes."""
+        to = (reply_to or wa_id).strip()
         if text_content == "1":
-            # Solicitar orçamento
-            await self.mega_api.send_text(wa_id, FRETES_CONTACT)
+            await self.mega_api.send_text(to, FRETES_CONTACT)
             self.supabase.update_state(wa_id, "reset")
             try:
                 conv = self.supabase.get_user_state(wa_id)
                 if conv:
-                    self.sheets.append_fretes(conv)
+                    self.sheets.append_fretes(conv, telefone=reply_to or to)
             except Exception as e:
                 logger.warning(f"Google Sheets (fretes): {e}")
         elif text_content == "2":
-            # Voltar ao menu principal
-            await self.mega_api.send_text(wa_id, WELCOME_MESSAGE)
+            await self.mega_api.send_text(to, WELCOME_MESSAGE)
             self.supabase.update_state(wa_id, "inicio")
         else:
-            # Opção inválida - mostrar erro e reenviar menu de fretes
-            await self.mega_api.send_text(wa_id, ERROR_INVALID_OPTION)
-            await self.mega_api.send_text(wa_id, FRETES_MENU)
+            await self.mega_api.send_text(to, ERROR_INVALID_OPTION)
+            await self.mega_api.send_text(to, FRETES_MENU)
