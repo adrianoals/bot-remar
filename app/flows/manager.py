@@ -83,6 +83,49 @@ class FlowManager:
             return [p.strip() for p in raw.split("\n") if p.strip()]
         return [raw]
 
+    @staticmethod
+    def _infer_media_extension(media_bytes: bytes, fallback_mimetype: str = "") -> str:
+        """Detecta extensão real da mídia pelos bytes; fallback pelo mimetype."""
+        if not media_bytes:
+            return "bin"
+
+        header = media_bytes[:32]
+        if media_bytes.startswith(b"\xFF\xD8\xFF"):
+            return "jpg"
+        if media_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+            return "png"
+        if media_bytes.startswith((b"GIF87a", b"GIF89a")):
+            return "gif"
+        if media_bytes.startswith(b"RIFF") and media_bytes[8:12] == b"WEBP":
+            return "webp"
+        if media_bytes.startswith(b"%PDF"):
+            return "pdf"
+        if len(media_bytes) > 12 and media_bytes[4:8] == b"ftyp":
+            brand = media_bytes[8:12]
+            if brand in (b"heic", b"heix", b"hevc", b"hevx", b"mif1", b"msf1"):
+                return "heic"
+            return "mp4"
+
+        mt = (fallback_mimetype or "").lower()
+        if "/" in mt:
+            ext = mt.split("/")[-1].split(";")[0].strip()
+            return "jpg" if ext == "jpeg" else (ext or "bin")
+        return "bin"
+
+    @staticmethod
+    def _content_type_from_extension(ext: str, fallback_mimetype: str = "") -> str:
+        mapping = {
+            "jpg": "image/jpeg",
+            "jpeg": "image/jpeg",
+            "png": "image/png",
+            "gif": "image/gif",
+            "webp": "image/webp",
+            "heic": "image/heic",
+            "pdf": "application/pdf",
+            "mp4": "video/mp4",
+        }
+        return mapping.get(ext.lower(), (fallback_mimetype or "application/octet-stream"))
+
     def extract_text_content(self, message: Dict[str, Any]) -> str:
         """Extrai o conteúdo de texto de uma mensagem."""
         if not message:
@@ -480,8 +523,8 @@ class FlowManager:
                     await self.mega_api.send_text(to, DONATION_CONFIRM_EMAIL.format(email=text_content))
             # 2) Depois: horário preferencial (Manhã / Tarde / Noite)
             elif not doacao.get("horario_preferencial"):
-                if text_content in ["1", "2", "3"]:
-                    mapa_horario = {"1": "Manhã", "2": "Tarde", "3": "Noite"}
+                if text_content in ["1", "2"]:
+                    mapa_horario = {"1": "Manhã", "2": "Tarde"}
                     horario = mapa_horario[text_content]
                     self.supabase.update_doacao(wa_id, {"horario_preferencial": horario})
                     # Após escolher horário, pedir a primeira foto
@@ -500,20 +543,21 @@ class FlowManager:
                         import tempfile
                         import os
                         import uuid
-                        
-                        file_ext = media_data.get("mimetype", "image/jpeg").split("/")[-1]
-                        if file_ext == "jpeg":
-                            file_ext = "jpg"
-                        temp_file = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.{file_ext}")
-                        
-                        success = await self.mega_api.download_and_save_media(media_data, temp_file)
-                        if success:
+
+                        media_bytes = await self.mega_api.download_media(media_data)
+                        if media_bytes:
+                            file_ext = self._infer_media_extension(media_bytes, media_data.get("mimetype", ""))
+                            content_type = self._content_type_from_extension(file_ext, media_data.get("mimetype", ""))
+                            temp_file = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.{file_ext}")
+                            with open(temp_file, "wb") as f:
+                                f.write(media_bytes)
+
                             file_name = f"{wa_id}/{uuid.uuid4()}.{file_ext}"
                             media_url = self.supabase.upload_media(
                                 temp_file,
                                 bucket="whatsapp_media",
                                 file_name=file_name,
-                                content_type=media_data.get("mimetype"),
+                                content_type=content_type,
                             )
                             
                             if media_url:

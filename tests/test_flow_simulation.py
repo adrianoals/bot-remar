@@ -77,6 +77,10 @@ class MockMegaApiService:
             return {"mimetype": "image/jpeg", "messageType": "image"}
         return None
 
+    async def download_media(self, media_data):
+        # Retorna bytes válidos de PNG para testes de detecção por assinatura.
+        return b"\x89PNG\r\n\x1a\n" + b"test-image-bytes"
+
     async def download_and_save_media(self, media_data, path):
         # Cria um arquivo fake
         with open(path, 'w') as f:
