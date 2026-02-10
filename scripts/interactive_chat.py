@@ -76,7 +76,7 @@ class InteractiveSupabaseMock:
         user_doacoes = [d for d in self.doacoes if d['wa_id'] == f"+{wa_id}"]
         return user_doacoes[-1] if user_doacoes else None
     
-    def upload_media(self, file_path, bucket, file_name=None):
+    def upload_media(self, file_path, bucket, file_name=None, content_type=None):
         return "https://url-simulada.com/imagem.jpg"
 
 class InteractiveMegaApiMock:

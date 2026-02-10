@@ -127,7 +127,7 @@ def test_supabase_connection():
                 print("   ✅ Bucket 'whatsapp_media' encontrado!")
             else:
                 print("   ⚠️  Bucket 'whatsapp_media' não encontrado")
-                print("      (Crie o bucket seguindo o guia em docs/database/criar_storage_bucket.md)")
+                print("      (Crie o bucket seguindo o guia em docs/database/storage.md)")
         except Exception as e:
             print(f"   ⚠️  Erro ao acessar Storage: {e}")
         
