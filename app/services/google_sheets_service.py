@@ -51,6 +51,21 @@ def _fmt_fotos(fotos: Any) -> str:
         return ""
     if isinstance(fotos, list):
         return "\n".join(str(u) for u in fotos)
+    if isinstance(fotos, dict):
+        return "\n".join(str(u) for u in fotos.values())
+    if isinstance(fotos, str):
+        raw = fotos.strip()
+        if not raw:
+            return ""
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return "\n".join(str(u) for u in parsed)
+            if isinstance(parsed, dict):
+                return "\n".join(str(u) for u in parsed.values())
+        except Exception:
+            pass
+        return raw
     return str(fotos)
 
 
@@ -187,11 +202,14 @@ class GoogleSheetsService:
         """
         nome = doacao.get("nome_responsavel") or doacao.get("nome") or ""
         endereco = doacao.get("endereco_retirada") or doacao.get("endereco") or ""
-        tel_info = doacao.get("telefone_whatsapp") or doacao.get("telefone") or ""
+        # Prioriza telefone informado pelo usuário no fluxo de doação.
+        # Se ausente, usa telefone do remetente.
+        tel_info = doacao.get("telefone_whatsapp") or doacao.get("telefone") or (telefone or "").strip()
         row = [
-            (telefone or "").strip(),
-            doacao.get("email") or "",
+            datetime.now().strftime("%d-%m-%Y"),
+            datetime.now().strftime("%H:%M:%S"),
             nome,
+            doacao.get("email") or "",
             tel_info,
             endereco,
             doacao.get("tipo_doacao") or "",
@@ -199,7 +217,5 @@ class GoogleSheetsService:
             doacao.get("horario_preferencial") or "",
             _fmt_fotos(doacao.get("fotos")),
             "Copie a URL",
-            datetime.now().strftime("%d-%m-%Y"),
-            datetime.now().strftime("%H:%M:%S"),
         ]
         self._append(SHEET_DOACAO_ITEM, row)

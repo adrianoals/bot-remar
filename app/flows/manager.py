@@ -33,6 +33,8 @@ from app.templates.messages import (
 import logging
 from typing import Optional, Dict, Any
 import re
+import json
+import ast
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,39 @@ class FlowManager:
     def _normalize_wa_id(raw: str) -> str:
         """Normaliza identificador WhatsApp mantendo apenas dígitos."""
         return re.sub(r"\D", "", (raw or "").strip())
+
+    @staticmethod
+    def _parse_fotos(value: Any) -> list[str]:
+        """
+        Normaliza o campo fotos para lista de URLs.
+        Aceita: list, dict (imagem1/imagem2), JSON string, string com \n ou string única.
+        """
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [str(v).strip() for v in value if str(v).strip()]
+        if isinstance(value, dict):
+            return [str(v).strip() for v in value.values() if str(v).strip()]
+        if not isinstance(value, str):
+            return [str(value).strip()] if str(value).strip() else []
+
+        raw = value.strip()
+        if not raw:
+            return []
+
+        for parser in (json.loads, ast.literal_eval):
+            try:
+                parsed = parser(raw)
+                if isinstance(parsed, list):
+                    return [str(v).strip() for v in parsed if str(v).strip()]
+                if isinstance(parsed, dict):
+                    return [str(v).strip() for v in parsed.values() if str(v).strip()]
+            except Exception:
+                continue
+
+        if "\n" in raw:
+            return [p.strip() for p in raw.split("\n") if p.strip()]
+        return [raw]
 
     def extract_text_content(self, message: Dict[str, Any]) -> str:
         """Extrai o conteúdo de texto de uma mensagem."""
@@ -474,15 +509,24 @@ class FlowManager:
                         success = await self.mega_api.download_and_save_media(media_data, temp_file)
                         if success:
                             file_name = f"{wa_id}/{uuid.uuid4()}.{file_ext}"
-                            media_url = self.supabase.upload_media(temp_file, bucket="whatsapp_media", file_name=file_name)
+                            media_url = self.supabase.upload_media(
+                                temp_file,
+                                bucket="whatsapp_media",
+                                file_name=file_name,
+                                content_type=media_data.get("mimetype"),
+                            )
                             
                             if media_url:
                                 doacao_atual = self.supabase.get_latest_doacao(wa_id)
-                                fotos = doacao_atual.get("fotos", []) if doacao_atual else []
-                                if not isinstance(fotos, list):
-                                    fotos = []
-                                fotos.append(media_url)
-                                self.supabase.update_doacao(wa_id, {"fotos": fotos})
+                                fotos_raw = doacao_atual.get("fotos") if doacao_atual else None
+                                fotos = self._parse_fotos(fotos_raw)
+                                if media_url not in fotos:
+                                    fotos.append(media_url)
+
+                                # Quando o campo é TEXT no banco, persistimos JSON string para manter múltiplas URLs.
+                                # Quando é JSON/JSONB e já retorna lista, mantém como lista.
+                                fotos_to_save: Any = fotos if isinstance(fotos_raw, list) else json.dumps(fotos, ensure_ascii=False)
+                                self.supabase.update_doacao(wa_id, {"fotos": fotos_to_save})
                                 logger.info(f"Foto salva para {wa_id}: {media_url}")
                             
                             try:

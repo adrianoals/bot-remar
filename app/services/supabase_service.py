@@ -108,26 +108,27 @@ class SupabaseService:
             logger.error(f"Erro ao buscar doação para {wa_id}: {e}")
             return None
 
-    def upload_media(self, file_path: str, bucket: str = "whatsapp_media", file_name: str = None) -> Optional[str]:
+    def upload_media(
+        self,
+        file_path: str,
+        bucket: str = "whatsapp_media",
+        file_name: str = None,
+        content_type: Optional[str] = None,
+    ) -> Optional[str]:
         """Faz upload de uma mídia para o Supabase Storage."""
         try:
             import os
+            import mimetypes
             if not file_name:
                 file_name = os.path.basename(file_path)
             
             with open(file_path, 'rb') as f:
                 file_data = f.read()
             
-            # Detectar content-type
-            content_type = "image/jpeg"
-            if file_path.endswith('.png'):
-                content_type = "image/png"
-            elif file_path.endswith('.gif'):
-                content_type = "image/gif"
-            elif file_path.endswith('.mp4'):
-                content_type = "video/mp4"
-            elif file_path.endswith('.pdf'):
-                content_type = "application/pdf"
+            # Preserva o mimetype real quando fornecido; fallback por extensão.
+            if not content_type:
+                guessed, _ = mimetypes.guess_type(file_name or file_path)
+                content_type = guessed or "application/octet-stream"
             
             # Upload para Supabase Storage
             response = self.client.storage.from_(bucket).upload(

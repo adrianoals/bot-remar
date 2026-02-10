@@ -8,6 +8,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app.flows.manager import FlowManager
+from app.services.google_sheets_service import GoogleSheetsService
 
 # Configuração básica de logging para ver o fluxo no terminal
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -58,7 +59,7 @@ class MockSupabaseService:
             return self.doacoes[wa_id][-1]
         return None
     
-    def upload_media(self, file_path, bucket="whatsapp_media", file_name=None):
+    def upload_media(self, file_path, bucket="whatsapp_media", file_name=None, content_type=None):
         return f"https://fake-supabase.com/storage/{bucket}/{file_name}"
 
 class MockMegaApiService:
@@ -204,6 +205,84 @@ class TestFlowSimulation(unittest.IsolatedAsyncioTestCase):
             normalized = "5511988887777"
             self.assertIsNotNone(manager.supabase.get_user_state(normalized))
             self.assertEqual(manager.mega_api.sent_messages[-1]["to"], normalized)
+
+    async def test_multiplas_fotos_acumulam_no_campo_fotos(self):
+        with patch('app.flows.manager.SupabaseService', side_effect=MockSupabaseService), \
+             patch('app.flows.manager.MegaApiService', side_effect=MockMegaApiService):
+            manager = FlowManager()
+            wa_id = "5511999999999"
+
+            # Estado pronto para etapa de fotos
+            manager.supabase.create_or_update_user(wa_id, {"estado": "doacao_item_9"})
+            manager.supabase.create_doacao(wa_id, "Móveis")
+            manager.supabase.update_doacao(
+                wa_id,
+                {
+                    "email": "teste@email.com",
+                    "horario_preferencial": "Tarde",
+                    "fotos": '["https://existente"]',
+                },
+            )
+
+            async def send_image():
+                data = {
+                    "key": {"remoteJid": f"{wa_id}@s.whatsapp.net", "fromMe": False},
+                    "message": {"imageMessage": {"mimetype": "image/heic"}},
+                    "pushName": "Adriano Tester",
+                }
+                await manager.handle_message(data)
+
+            await send_image()
+            await send_image()
+
+            doacao = manager.supabase.get_latest_doacao(wa_id)
+            fotos = FlowManager._parse_fotos(doacao.get("fotos"))
+            self.assertGreaterEqual(len(fotos), 3)
+
+
+class CapturingSheetsService(GoogleSheetsService):
+    def __init__(self):
+        self.rows = []
+
+    def _append(self, sheet_name, values):
+        self.rows.append((sheet_name, values))
+
+
+class TestDataFormatting(unittest.TestCase):
+    def test_parse_fotos_from_json_string_dict(self):
+        fotos = FlowManager._parse_fotos('{"imagem1":"https://a","imagem2":"https://b"}')
+        self.assertEqual(fotos, ["https://a", "https://b"])
+
+    def test_append_doacao_item_column_order_matches_n8n(self):
+        sheets = CapturingSheetsService()
+        doacao = {
+            "nome_responsavel": "Joao",
+            "email": "joao@email.com",
+            "telefone_whatsapp": "11999999999",
+            "endereco_retirada": "Rua A, 123",
+            "tipo_doacao": "Móveis",
+            "estado_doacao": "Novo",
+            "horario_preferencial": "Manhã",
+            "fotos": '["https://img1","https://img2"]',
+        }
+
+        sheets.append_doacao_item(doacao, telefone="5511999999999")
+        self.assertEqual(len(sheets.rows), 1)
+        _, row = sheets.rows[0]
+
+        # Ordem esperada conforme mapeamento do n8n (Doação Item):
+        # Data Criação, Horário, Nome, Email, Telefone, Endereço,
+        # Tipo De Doação, Estado Doação, Horário Preferencial, Fotos, Verificar Foto
+        self.assertEqual(row[2], "Joao")
+        self.assertEqual(row[3], "joao@email.com")
+        self.assertEqual(row[4], "11999999999")
+        self.assertEqual(row[5], "Rua A, 123")
+        self.assertEqual(row[6], "Móveis")
+        self.assertEqual(row[7], "Novo")
+        self.assertEqual(row[8], "Manhã")
+        self.assertIn("https://img1", row[9])
+        self.assertIn("https://img2", row[9])
+        self.assertEqual(row[10], "Copie a URL")
 
 if __name__ == '__main__':
     unittest.main()
