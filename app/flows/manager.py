@@ -102,7 +102,7 @@ class FlowManager:
                 return
 
             wa_id = remote_jid.split("@")[0] if remote_jid else ""
-            logger.info(f"✅ wa_id extraído: {wa_id}")
+            logger.info(f"✅ wa_id extraído (remoteJid): {wa_id}")
             
             if not wa_id:
                 logger.error("❌ ERRO: wa_id está vazio! remoteJid não encontrado ou inválido")
@@ -112,22 +112,26 @@ class FlowManager:
             # Destino das respostas: preferir número real (senderPn) para a MegaAPI entregar no mesmo chat
             sender_pn = (key.get("senderPn") or "").strip()
             reply_to = sender_pn.split("@")[0].strip() if sender_pn else wa_id
+            # Chave usada no Supabase (estado da conversa): preferir também o telefone real
+            db_wa_id = reply_to or wa_id
             if reply_to != wa_id:
-                logger.info(f"📱 reply_to (senderPn): {reply_to} (wa_id para estado: {wa_id})")
+                logger.info(f"📱 reply_to (senderPn): {reply_to}")
+                logger.info(f"💾 db_wa_id (Supabase): {db_wa_id}  | wa_id original (remoteJid): {wa_id}")
             else:
                 logger.info(f"📱 reply_to: {reply_to} (sem senderPn no payload)")
+                logger.info(f"💾 db_wa_id (Supabase): {db_wa_id}")
             
             text_content = self.extract_text_content(message).strip()
             logger.info(f"✅ Texto extraído: '{text_content}'")
 
             # Verificar comandos de admin
             if text_content.startswith("/"):
-                await self.handle_admin_command(wa_id, text_content, push_name, reply_to)
+                await self.handle_admin_command(db_wa_id, text_content, push_name, reply_to)
                 return
 
             # Buscar estado atual do usuário
-            logger.info(f"🔍 Buscando estado do usuário: {wa_id}")
-            user_state = self.supabase.get_user_state(wa_id)
+            logger.info(f"🔍 Buscando estado do usuário: {db_wa_id}")
+            user_state = self.supabase.get_user_state(db_wa_id)
             logger.info(f"📊 Estado encontrado: {user_state}")
             
             # Atualizar data e horário a cada mensagem (como no n8n)
@@ -135,7 +139,7 @@ class FlowManager:
             if user_state:
                 from datetime import datetime
                 logger.info("🔄 Atualizando data e horário...")
-                self.supabase.create_or_update_user(wa_id, {
+                self.supabase.create_or_update_user(db_wa_id, {
                     "data": datetime.now().strftime('%Y-%m-%d'),
                     "horario": datetime.now().strftime('%H:%M:%S')
                 })
@@ -144,7 +148,7 @@ class FlowManager:
             # Se não tem estado ou é comando de início, começar fluxo
             if not user_state or text_content.lower() in ["oi", "ola", "olá", "começar", "inicio", "início"]:
                 logger.info("🚀 Iniciando novo fluxo (usuário novo ou comando de início)")
-                await self.handle_initial_state(wa_id, push_name, reply_to)
+                await self.handle_initial_state(db_wa_id, push_name, reply_to)
                 return
 
             estado = user_state.get("estado", "inicio")
@@ -153,26 +157,26 @@ class FlowManager:
             if estado == "reset":
                 # Estado de reset/amortecimento: qualquer mensagem reinicia o fluxo sem erro
                 logger.info("🔄 Estado RESET: Reiniciando fluxo silenciosamente")
-                await self.handle_initial_state(wa_id, push_name, reply_to)
+                await self.handle_initial_state(db_wa_id, push_name, reply_to)
                 return
 
             if estado == "inicio" or estado == "inicio0":
-                await self.handle_menu_principal(wa_id, text_content, reply_to)
+                await self.handle_menu_principal(db_wa_id, text_content, reply_to)
             elif estado == "doacao":
-                await self.handle_doacao_tipo(wa_id, text_content, reply_to)
+                await self.handle_doacao_tipo(db_wa_id, text_content, reply_to)
             elif estado.startswith("doacao_item_"):
-                await self.handle_doacao_item(wa_id, text_content, estado, message, reply_to)
+                await self.handle_doacao_item(db_wa_id, text_content, estado, message, reply_to)
             elif estado == "acolhimento":
-                await self.handle_acolhimento(wa_id, text_content, reply_to)
+                await self.handle_acolhimento(db_wa_id, text_content, reply_to)
             elif estado == "lojas":
-                await self.handle_lojas(wa_id, text_content, reply_to)
+                await self.handle_lojas(db_wa_id, text_content, reply_to)
             elif estado == "servico":
-                await self.handle_servicos(wa_id, text_content, reply_to)
+                await self.handle_servicos(db_wa_id, text_content, reply_to)
             elif estado == "fretes":
-                await self.handle_fretes(wa_id, text_content, reply_to)
+                await self.handle_fretes(db_wa_id, text_content, reply_to)
             else:
                 # Estado desconhecido, voltar ao início
-                await self.handle_initial_state(wa_id, push_name, reply_to)
+                await self.handle_initial_state(db_wa_id, push_name, reply_to)
 
         except Exception as e:
             logger.error(f"Erro no processamento: {e}", exc_info=True)
