@@ -157,5 +157,53 @@ class TestFlowSimulation(unittest.IsolatedAsyncioTestCase):
 
             print("\n=== SIMULAÇÃO CONCLUÍDA COM SUCESSO ===")
 
+    async def test_estado_doacao_salva_texto_template(self):
+        """
+        Garante que estado_doacao salva o texto (não o número da opção).
+        """
+        with patch('app.flows.manager.SupabaseService', side_effect=MockSupabaseService), \
+             patch('app.flows.manager.MegaApiService', side_effect=MockMegaApiService):
+            manager = FlowManager()
+            wa_id = "5511999999999"
+
+            async def user_sends(text):
+                data = {
+                    "key": {"remoteJid": f"{wa_id}@s.whatsapp.net", "fromMe": False},
+                    "message": {"conversation": text},
+                    "pushName": "Adriano Tester"
+                }
+                await manager.handle_message(data)
+
+            await user_sends("Oi")
+            await user_sends("1")  # menu principal -> doacao
+            await user_sends("2")  # tipo doacao -> item
+            await user_sends("1")  # categoria
+            await user_sends("2")  # estado item
+
+            doacao = manager.supabase.get_latest_doacao(wa_id)
+            self.assertEqual(doacao["estado_doacao"], "Usado em bom estado")
+
+    async def test_senderpn_define_chave_conversa_e_destino(self):
+        """
+        Garante que senderPn é usado (normalizado) para chave do Supabase e destino da resposta.
+        """
+        with patch('app.flows.manager.SupabaseService', side_effect=MockSupabaseService), \
+             patch('app.flows.manager.MegaApiService', side_effect=MockMegaApiService):
+            manager = FlowManager()
+            data = {
+                "key": {
+                    "remoteJid": "5511000000000@s.whatsapp.net",
+                    "senderPn": "+55 (11) 98888-7777@s.whatsapp.net",
+                    "fromMe": False
+                },
+                "message": {"conversation": "Oi"},
+                "pushName": "Teste SenderPn"
+            }
+            await manager.handle_message(data)
+
+            normalized = "5511988887777"
+            self.assertIsNotNone(manager.supabase.get_user_state(normalized))
+            self.assertEqual(manager.mega_api.sent_messages[-1]["to"], normalized)
+
 if __name__ == '__main__':
     unittest.main()

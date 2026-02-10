@@ -32,6 +32,7 @@ from app.templates.messages import (
 )
 import logging
 from typing import Optional, Dict, Any
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,11 @@ class FlowManager:
         self.mega_api = MegaApiService()
         self.supabase = SupabaseService()
         self.sheets = GoogleSheetsService()
+
+    @staticmethod
+    def _normalize_wa_id(raw: str) -> str:
+        """Normaliza identificador WhatsApp mantendo apenas dígitos."""
+        return re.sub(r"\D", "", (raw or "").strip())
 
     def extract_text_content(self, message: Dict[str, Any]) -> str:
         """Extrai o conteúdo de texto de uma mensagem."""
@@ -101,7 +107,7 @@ class FlowManager:
                 logger.info("⚠️ Mensagem ignorada: isGroup = True (mensagem de grupo)")
                 return
 
-            wa_id = remote_jid.split("@")[0] if remote_jid else ""
+            wa_id = self._normalize_wa_id(remote_jid.split("@")[0] if remote_jid else "")
             logger.info(f"✅ wa_id extraído (remoteJid): {wa_id}")
             
             if not wa_id:
@@ -111,7 +117,8 @@ class FlowManager:
 
             # Destino das respostas: preferir número real (senderPn) para a MegaAPI entregar no mesmo chat
             sender_pn = (key.get("senderPn") or "").strip()
-            reply_to = sender_pn.split("@")[0].strip() if sender_pn else wa_id
+            sender_wa_id = self._normalize_wa_id(sender_pn.split("@")[0] if sender_pn else "")
+            reply_to = sender_wa_id or wa_id
             # Chave usada no Supabase (estado da conversa): preferir também o telefone real
             db_wa_id = reply_to or wa_id
             if reply_to != wa_id:
@@ -301,8 +308,15 @@ class FlowManager:
 
         # doacao_item_2: Estado dos itens
         elif estado_num == 2:
-            if text_content in ["1", "2", "3", "4", "5"]:
-                self.supabase.update_doacao(wa_id, {"estado_doacao": text_content})
+            estados_doacao = {
+                "1": "Novo",
+                "2": "Usado em bom estado",
+                "3": "Usado com marcas de uso",
+                "4": "Com defeito (ou misto: alguns bons, outros com defeito)",
+                "5": "Não sei dizer",
+            }
+            if text_content in estados_doacao:
+                self.supabase.update_doacao(wa_id, {"estado_doacao": estados_doacao[text_content]})
                 await self.mega_api.send_text(to, DONATION_ASK_NAME)
                 self.supabase.update_state(wa_id, "doacao_item_3")
             elif text_content == "0":
