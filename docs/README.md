@@ -10,6 +10,7 @@ Esta pasta contem a documentacao oficial da implementacao Python do chatbot Rema
 - `flows.md`: estados e fluxos conversacionais implementados.
 - `integrations.md`: MegaAPI, Supabase e Google Sheets.
 - `deploy.md`: guia de deploy em producao.
+- `deploy-checklist.md`: status do deploy atual (o que ja foi feito e pendencias).
 - `operations.md`: operacao, limpeza e troubleshooting.
 - `database/README.md`: schema e uso do banco.
 - `database/database.sql`: schema completo recomendado.

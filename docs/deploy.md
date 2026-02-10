@@ -2,6 +2,44 @@
 
 Este guia parte do cenario: VPS recem-reinstalada (Ubuntu 24.04), ambiente vazio, e deploy do bot em `bot.sorteionovo.com.br`.
 
+## Status atual (10/02/2026)
+
+### Concluido
+
+- VPS reinstalada e atualizada
+- Timezone configurado
+- Docker e Docker Compose instalados
+- UFW ativo com portas `22`, `80`, `443`
+- DNS `bot.sorteionovo.com.br` apontando para `147.93.9.54`
+- Repositorio clonado em `/opt/remar`
+- Aplicacao subida com Docker Compose
+- Healthcheck interno OK (`GET /health`)
+- Runtime migrado para Python `3.12`
+
+### Pendente
+
+- Configurar HTTPS publico (`Nginx + Certbot`)
+- Configurar webhook da MegaAPI para `https://bot.sorteionovo.com.br/megaapi`
+- Configurar secrets do GitHub Actions
+- Validar primeiro deploy automatico (CI/CD)
+- Rodar teste funcional ponta a ponta em producao
+
+### Comandos ja validados
+
+```bash
+cd /opt/remar
+docker compose ps
+curl -fsS http://127.0.0.1:8000/health
+docker compose logs --tail=100 remar-bot
+docker compose exec remar-bot python --version
+```
+
+Resultado esperado:
+
+- container `healthy`
+- `/health` com `200`
+- versao Python `3.12.x`
+
 ## 1. Preparar servidor base
 
 Conecte na VPS:
