@@ -55,6 +55,8 @@ jobs:
             docker compose ps
 
       - name: Smoke test (optional)
-        if: ${{ secrets.APP_HEALTHCHECK_URL != '' }}
+        env:
+          APP_HEALTHCHECK_URL: ${{ secrets.APP_HEALTHCHECK_URL }}
+        if: ${{ env.APP_HEALTHCHECK_URL != '' }}
         run: |
-          curl -fsS "${{ secrets.APP_HEALTHCHECK_URL }}"
+          curl -fsS "$APP_HEALTHCHECK_URL"
