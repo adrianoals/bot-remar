@@ -145,7 +145,7 @@ Workflow: `.github/workflows/deploy.yml`
 Fluxo:
 
 1. Executa testes automáticos.
-2. Em `main`, publica código na VPS.
+2. Em `main`, conecta na VPS por SSH.
 3. Roda `docker compose up -d --build --remove-orphans`.
 4. Opcional: smoke test com URL de health.
 

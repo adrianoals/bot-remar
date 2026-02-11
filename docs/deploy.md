@@ -327,7 +327,7 @@ Fluxo:
 
 1. Push em `main`
 2. Executa testes
-3. Copia codigo para `/opt/remar`
+3. Conecta na VPS e sincroniza `main` com `git fetch/reset`
 4. Rebuild/restart com Docker Compose
 5. Smoke test no health (se configurado)
 
