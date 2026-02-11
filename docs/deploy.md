@@ -161,6 +161,61 @@ Requisito final:
 - URL publica HTTPS ativa para o bot (ex.: `https://bot.sorteionovo.com.br`)
 - endpoint do webhook: `POST /megaapi`
 
+### Passo a passo recomendado (Nginx + Certbot)
+
+Instalar pacotes:
+
+```bash
+apt install -y nginx certbot python3-certbot-nginx
+```
+
+Criar virtual host Nginx:
+
+```bash
+cat > /etc/nginx/sites-available/bot.sorteionovo.com.br << 'EOF'
+server {
+    listen 80;
+    server_name bot.sorteionovo.com.br;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF
+```
+
+Ativar site e reiniciar Nginx:
+
+```bash
+ln -s /etc/nginx/sites-available/bot.sorteionovo.com.br /etc/nginx/sites-enabled/
+nginx -t
+systemctl restart nginx
+```
+
+Emitir certificado TLS:
+
+```bash
+certbot --nginx -d bot.sorteionovo.com.br -m dri.limasantos@gmail.com --agree-tos --no-eff-email -n
+```
+
+Validar HTTPS:
+
+```bash
+curl -I https://bot.sorteionovo.com.br/health
+```
+
+Opcional: validar renovacao automatica:
+
+```bash
+systemctl status certbot.timer
+certbot renew --dry-run
+```
+
 ## 9. Configurar webhook na MegaAPI
 
 Defina na MegaAPI:
