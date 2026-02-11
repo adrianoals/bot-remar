@@ -50,10 +50,28 @@ jobs:
             git reset --hard origin/main
             docker compose up -d --build --remove-orphans
             docker compose ps
+            for i in {1..24}; do
+              if curl -fsS http://127.0.0.1:8000/health >/dev/null; then
+                echo "Local healthcheck OK"
+                break
+              fi
+              echo "Aguardando app subir... tentativa $i/24"
+              sleep 5
+            done
+            curl -fsS http://127.0.0.1:8000/health >/dev/null
 
       - name: Smoke test (optional)
         env:
           APP_HEALTHCHECK_URL: ${{ secrets.APP_HEALTHCHECK_URL }}
         if: ${{ env.APP_HEALTHCHECK_URL != '' }}
         run: |
-          curl -fsS "$APP_HEALTHCHECK_URL"
+          for i in {1..12}; do
+            if curl -fsS "$APP_HEALTHCHECK_URL" >/dev/null; then
+              echo "External healthcheck OK"
+              exit 0
+            fi
+            echo "Aguardando endpoint externo... tentativa $i/12"
+            sleep 5
+          done
+          echo "Falha no healthcheck externo: $APP_HEALTHCHECK_URL"
+          exit 1
