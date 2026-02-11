@@ -21,6 +21,12 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run tests
+        env:
+          MEGA_API_URL: "https://example.megaapi.local"
+          MEGA_API_INSTANCE_KEY: "ci-instance"
+          MEGA_API_TOKEN: "ci-token"
+          SUPABASE_URL: "https://example.supabase.co"
+          SUPABASE_KEY: "ci-supabase-key"
         run: python -m unittest discover -s tests -p "test_*.py" -v
 
   deploy:
