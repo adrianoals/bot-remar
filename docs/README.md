@@ -23,3 +23,6 @@ Esta pasta contem a documentacao oficial da implementacao Python do chatbot Rema
 - Banco em Supabase (Postgres + Storage).
 - Google Sheets opcional para registro de leads e doacoes.
 - n8n mantido apenas como referencia.
+
+
+codex resume 019c48d2-9f26-7030-a965-fbc837ef91fd
