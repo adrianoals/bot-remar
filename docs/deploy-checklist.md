@@ -38,21 +38,21 @@ Este documento resume o que ja foi feito na VPS e o que ainda falta para o go-li
 ## CI/CD
 
 - [x] Workflow criado em `.github/workflows/deploy.yml`
-- [ ] Secrets do GitHub Actions configurados:
-  - [ ] `VPS_HOST`
-  - [ ] `VPS_USER`
-  - [ ] `VPS_SSH_KEY`
-  - [ ] `APP_HEALTHCHECK_URL` (opcional)
-- [ ] Primeiro deploy automatico validado via push em `main`
+- [x] Secrets do GitHub Actions configurados:
+  - [x] `VPS_HOST`
+  - [x] `VPS_USER`
+  - [x] `VPS_SSH_KEY`
+  - [x] `APP_HEALTHCHECK_URL` (opcional)
+- [x] Primeiro deploy automatico validado via push em `main`
 
 ## HTTPS e webhook (pendente para producao)
 
-- [ ] Configurar reverse proxy (recomendado: Nginx + Certbot)
-- [ ] Emitir certificado TLS para `bot.sorteionovo.com.br`
-- [ ] Validar acesso externo HTTPS
-- [ ] Configurar webhook da MegaAPI:
-  - URL: `https://bot.sorteionovo.com.br/megaapi`
-  - Metodo: `POST`
+- [x] Configurar reverse proxy (recomendado: Nginx + Certbot)
+- [x] Emitir certificado TLS para `bot.sorteionovo.com.br`
+- [x] Validar acesso externo HTTPS
+- [x] Configurar webhook da MegaAPI:
+  - [x] URL: `https://bot.sorteionovo.com.br/megaapi`
+  - [x] Metodo: `POST`
 
 ## Validacao funcional final
 
