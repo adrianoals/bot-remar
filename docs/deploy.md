@@ -268,6 +268,61 @@ Configure secrets no GitHub (`Settings > Secrets and variables > Actions`):
 - `VPS_SSH_KEY`
 - `APP_HEALTHCHECK_URL` (opcional)
 
+### Como preencher `VPS_SSH_KEY` corretamente
+
+`VPS_SSH_KEY` deve ser a **chave privada SSH** usada pelo GitHub Actions para conectar na VPS.
+
+Importante:
+
+- colar o conteudo completo da chave privada
+- incluir `-----BEGIN OPENSSH PRIVATE KEY-----`
+- incluir `-----END OPENSSH PRIVATE KEY-----`
+- manter as quebras de linha
+
+Exemplo de validacao no Mac:
+
+```bash
+cat ~/.ssh/id_ed25519_gha_remar
+```
+
+### Passo a passo recomendado (chave dedicada para CI/CD)
+
+No Mac, gerar chave sem passphrase:
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions-remar" -f ~/.ssh/id_ed25519_gha_remar -N ""
+```
+
+Adicionar a chave publica na VPS (`authorized_keys` do root):
+
+```bash
+cat ~/.ssh/id_ed25519_gha_remar.pub | ssh root@147.93.9.54 "mkdir -p /root/.ssh && chmod 700 /root/.ssh && cat >> /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys"
+```
+
+Testar autenticacao com a nova chave:
+
+```bash
+ssh -i ~/.ssh/id_ed25519_gha_remar -o IdentitiesOnly=yes root@147.93.9.54
+```
+
+Depois, no GitHub Secret `VPS_SSH_KEY`, colar:
+
+```bash
+cat ~/.ssh/id_ed25519_gha_remar
+```
+
+### Erro comum e causa
+
+Se no Actions aparecer:
+
+`ssh.ParsePrivateKey: ssh: no key found`
+
+geralmente significa:
+
+- chave privada colada incompleta/truncada
+- perda de quebras de linha no secret
+- chave publica colada no lugar da privada
+
 Fluxo:
 
 1. Push em `main`
