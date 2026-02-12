@@ -132,12 +132,15 @@ Preencha obrigatorios:
 - `SUPABASE_KEY`
 - `LOG_LEVEL` (recomendado `INFO`)
 - `LOG_JSON` (recomendado `1`)
+- `ADMIN_USER` (usuario do painel)
+- `ADMIN_PASSWORD` (senha do painel)
 
 ## 6. Storage e banco no Supabase
 
 Antes do primeiro uso:
 
 - Rode SQL de schema: `docs/database/database.sql`
+- Rode SQL de controle global: `docs/database/add_automacao_controle.sql`
 - Configure bucket/politicas: `docs/database/storage.md`
 
 ## 7. Subir aplicacao com Docker Compose

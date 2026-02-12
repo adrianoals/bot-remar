@@ -133,6 +133,17 @@ class FlowManager:
             return ""
         return media_bytes[:length].hex()
 
+    def _is_global_automation_enabled(self) -> bool:
+        checker = getattr(self.supabase, "get_global_automation_enabled", None)
+        if callable(checker):
+            return bool(checker())
+        return True
+
+    def _is_user_manual_mode(self, user_state: Optional[Dict[str, Any]]) -> bool:
+        if not user_state:
+            return False
+        return user_state.get("estado") == "manual"
+
     def extract_text_content(self, message: Dict[str, Any]) -> str:
         """Extrai o conteúdo de texto de uma mensagem."""
         if not message:
@@ -221,10 +232,20 @@ class FlowManager:
                 await self.handle_admin_command(db_wa_id, text_content, push_name, reply_to)
                 return
 
+            # Checagem global de automação (antes de entrar no fluxo)
+            if not self._is_global_automation_enabled():
+                logger.info("⏸️ Automação global desativada. Mensagem ignorada.")
+                return
+
             # Buscar estado atual do usuário
             logger.info(f"🔍 Buscando estado do usuário: {db_wa_id}")
             user_state = self.supabase.get_user_state(db_wa_id)
             logger.info(f"📊 Estado encontrado: {user_state}")
+
+            # Checagem de automação por usuário (estado manual)
+            if self._is_user_manual_mode(user_state):
+                logger.info(f"⏸️ Automação desativada para usuário {db_wa_id}. Mensagem ignorada.")
+                return
             
             # Atualizar data e horário a cada mensagem (como no n8n)
             # Isso garante que sempre temos a última interação registrada
@@ -276,11 +297,57 @@ class FlowManager:
     async def handle_admin_command(self, wa_id: str, command: str, push_name: str, reply_to: str):
         """Trata comandos de administrador."""
         to = reply_to or wa_id
-        if "/chat" in command.lower():
-            await self.mega_api.send_text(to, "Modo chat manual ativado.")
-        elif "/nochat" in command.lower():
-            self.supabase.update_state(wa_id, "inicio")
-            await self.mega_api.send_text(to, "Modo automático ativado.")
+        cmd = (command or "").strip().lower()
+
+        # Comandos globais
+        if cmd == "/desativar":
+            ok = self.supabase.set_global_automation(False)
+            text = "⏸️ Automação desativada para todos." if ok else "❌ Falha ao desativar automação global."
+            await self.mega_api.send_text(to, text)
+            return
+
+        if cmd == "/ativar":
+            ok_global = self.supabase.set_global_automation(True)
+            ok_reset = self.supabase.set_all_users_to_initial()
+            if ok_global and ok_reset:
+                await self.mega_api.send_text(to, "✅ Automação ativada para todos. Estados resetados para início.")
+            else:
+                await self.mega_api.send_text(to, "❌ Falha ao ativar automação global.")
+            return
+
+        # Comandos por usuário: /ativar-5511...  | /desativar-5511...
+        match_activate = re.match(r"^/ativar-(\+?\d{10,15})$", cmd)
+        if match_activate:
+            target = self._normalize_wa_id(match_activate.group(1))
+            ok = self.supabase.set_user_automation(target, True)
+            text = f"✅ Automação ativada para +{target}." if ok else f"❌ Falha ao ativar +{target}."
+            await self.mega_api.send_text(to, text)
+            return
+
+        match_deactivate = re.match(r"^/desativar-(\+?\d{10,15})$", cmd)
+        if match_deactivate:
+            target = self._normalize_wa_id(match_deactivate.group(1))
+            ok = self.supabase.set_user_automation(target, False)
+            text = f"⏸️ Automação desativada para +{target}." if ok else f"❌ Falha ao desativar +{target}."
+            await self.mega_api.send_text(to, text)
+            return
+
+        # Compatibilidade com comandos antigos
+        if "/chat" in cmd:
+            self.supabase.set_user_automation(wa_id, False)
+            await self.mega_api.send_text(to, "⏸️ Modo manual ativado para este usuário.")
+            return
+        if "/nochat" in cmd:
+            self.supabase.set_user_automation(wa_id, True)
+            await self.mega_api.send_text(to, "✅ Modo automático ativado para este usuário.")
+            return
+
+        await self.mega_api.send_text(
+            to,
+            "Comandos disponíveis:\n"
+            "/ativar\n/desativar\n"
+            "/ativar-5511999999999\n/desativar-5511999999999"
+        )
 
     async def handle_initial_state(self, wa_id: str, push_name: str, reply_to: Optional[str] = None):
         """Handle estado inicial - seleção de estado geográfico (Switch3)."""

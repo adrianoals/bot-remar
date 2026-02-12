@@ -15,6 +15,7 @@ Esta pasta contem a documentacao oficial da implementacao Python do chatbot Rema
 - `database/README.md`: schema e uso do banco.
 - `database/database.sql`: schema completo recomendado.
 - `database/add_mensagem_temp_column.sql`: migracao incremental.
+- `database/add_automacao_controle.sql`: migracao para controle global de automacao.
 - `database/storage.md`: configuracao do bucket de midia.
 
 ## Escopo atual

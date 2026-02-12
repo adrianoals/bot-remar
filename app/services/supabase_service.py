@@ -23,6 +23,58 @@ class SupabaseService:
             logger.error(f"Erro ao buscar estado do usuário {wa_id}: {e}")
             return None
 
+    def get_global_automation_enabled(self) -> bool:
+        """Retorna se a automação global está ativa (default=True)."""
+        try:
+            response = (
+                self.client.table("automacao_controle")
+                .select("ativo_global")
+                .eq("id", 1)
+                .limit(1)
+                .execute()
+            )
+            if response.data:
+                return bool(response.data[0].get("ativo_global", True))
+            return True
+        except Exception as e:
+            logger.warning(f"Falha ao consultar automação global (assumindo ativa): {e}")
+            return True
+
+    def set_global_automation(self, enabled: bool) -> bool:
+        """Ativa/desativa automação global."""
+        try:
+            payload = {"id": 1, "ativo_global": bool(enabled), "atualizado_em": datetime.now().isoformat()}
+            self.client.table("automacao_controle").upsert(payload).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao atualizar automação global: {e}")
+            return False
+
+    def set_all_users_to_initial(self) -> bool:
+        """Reseta todos os usuários para estado inicial."""
+        try:
+            payload = {
+                "estado": "inicio",
+                "mensagem_temp": None,
+                "data": datetime.now().strftime("%Y-%m-%d"),
+                "horario": datetime.now().strftime("%H:%M:%S"),
+            }
+            self.client.table("conversas").update(payload).neq("wa_id", "").execute()
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao resetar estados de todos usuários: {e}")
+            return False
+
+    def set_user_automation(self, wa_id: str, enabled: bool) -> bool:
+        """Ativa/desativa automação para um usuário (via estado em conversas)."""
+        try:
+            target_state = "inicio" if enabled else "manual"
+            self.create_or_update_user(wa_id, {"estado": target_state, "mensagem_temp": None})
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao atualizar automação do usuário {wa_id}: {e}")
+            return False
+
     def create_or_update_user(self, wa_id: str, updates: dict):
         """Cria ou atualiza o registro do usuário na tabela conversas."""
         try:

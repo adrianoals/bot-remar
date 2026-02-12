@@ -5,6 +5,7 @@ import sys
 from datetime import datetime, timezone
 from fastapi import FastAPI
 from app.api import webhook
+from app.api import admin
 from app.core.config import settings
 
 
@@ -53,6 +54,7 @@ app = FastAPI(
 )
 
 app.include_router(webhook.router)
+app.include_router(admin.router)
 
 @app.get("/")
 def read_root():

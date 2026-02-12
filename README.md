@@ -71,6 +71,8 @@ Obrigatórias:
 - `SUPABASE_KEY`
 - `LOG_LEVEL` (ex.: `INFO`)
 - `LOG_JSON` (`1` para JSON em produção)
+- `ADMIN_USER` (painel `/admin`)
+- `ADMIN_PASSWORD` (painel `/admin`)
 
 Opcionais (Google Sheets):
 
@@ -95,6 +97,7 @@ Webhook esperado:
 Saúde da aplicação:
 
 - `GET /health`
+- Painel administrativo: `GET /admin`
 
 ## Testes
 
