@@ -1,164 +1,134 @@
-# Remar Chatbot
+# Remar Chatbot — WhatsApp Chatbot for Associação Remar do Brasil
 
-Chatbot de WhatsApp da **Associação Remar do Brasil**, implementado em Python/FastAPI, com lógica de atendimento por máquina de estados.
+🇧🇷 [Leia em Português](README.pt-br.md)
 
-## Visão Geral
+Built for **Associação Remar do Brasil** by **XNAP**
 
-O bot atende fluxos de:
+A WhatsApp chatbot that automates donor engagement and social service inquiries for Associação Remar do Brasil. It manages multi-step conversational flows — from item donations with photo collection to shelter referrals — using a state-machine architecture powered by FastAPI and Supabase.
 
-- Doação em valor
-- Doação de itens (fluxo completo com coleta de dados e fotos)
-- Acolhimento
-- Lojas solidárias
-- Serviços
-- Fretes e mudanças
+## Tech Stack
 
-Persistência principal:
+- **Language:** Python 3.12
+- **Framework:** FastAPI + Uvicorn
+- **Database & Storage:** Supabase (Postgres + Storage)
+- **WhatsApp Gateway:** MegaAPI
+- **Configuration:** Pydantic Settings + python-dotenv
+- **Optional Integration:** Google Sheets (logging completed flows)
+- **Infrastructure:** Docker Compose, GitHub Actions CI/CD
 
-- Supabase Postgres (`conversas`, `doacoes`)
-- Supabase Storage (`whatsapp_media`)
-- Google Sheets (opcional)
+## Features
 
-Referência histórica de fluxo:
+- **State-machine conversation engine** — each user progresses through defined states stored in Supabase, enabling multi-step flows with data collection and validation
+- **Item donation flow** — 9-step guided process collecting category, condition, contact info, preferred pickup time, and photos
+- **Service directory** — quick-access flows for shelters (acolhimento), solidarity shops, services, and freight/moving
+- **Media handling** — downloads media from WhatsApp via MegaAPI, detects format by magic bytes, uploads to Supabase Storage
+- **Admin panel** — web-based interface at `/admin` with global automation on/off toggle and per-user manual mode
+- **Google Sheets logging** — optional integration that logs completed interactions to spreadsheet tabs by category
+- **CI/CD pipeline** — automated tests on push, deploy to VPS via SSH on main branch
 
-- `docs/context/ChatRemar.json` (workflow original no n8n)
+## Project Structure
 
-## Stack
-
-- Python 3.12+
-- FastAPI + Uvicorn
-- Supabase Python Client
-- httpx
-- pydantic-settings
-- python-dotenv
-
-## Estrutura
-
-```text
+```
 Remar/
 ├── app/
-│   ├── api/                 # Webhook e rotas
-│   ├── core/                # Configurações
-│   ├── flows/               # Fluxo conversacional
-│   ├── services/            # MegaAPI, Supabase, Google Sheets
-│   └── templates/           # Mensagens do bot
-├── docs/                    # Documentação oficial do projeto
-├── scripts/                 # Utilitários manuais
+│   ├── api/                  # Webhook endpoint and admin panel routes
+│   ├── core/                 # Configuration (Pydantic Settings)
+│   ├── flows/                # FlowManager — state machine logic
+│   ├── services/             # MegaAPI, Supabase, Google Sheets clients
+│   └── templates/messages/   # User-facing message templates (pt-BR)
 ├── tests/
-│   ├── unit/                # Testes de lógica com mocks
-│   ├── contracts/           # Contratos de payload/eventos
-│   ├── integration/         # Integração real (opcional/live)
-│   └── fixtures/            # Payloads de referência
+│   ├── unit/                 # Flow logic tests with mocks
+│   ├── contracts/            # Webhook payload validation
+│   ├── integration/          # Live Supabase tests (opt-in)
+│   └── fixtures/             # Reference payloads
+├── docs/                     # Architecture, flows, deploy, and DB docs
+├── scripts/                  # Interactive chat simulator, connection tests
+├── docker-compose.yml
+├── Dockerfile
 └── requirements.txt
 ```
 
-## Configuração
+## Getting Started
 
-1. Instale dependências:
+### Prerequisites
+
+- Python 3.12+
+- A Supabase project with the schema from `docs/database/database.sql`
+- A MegaAPI instance for WhatsApp connectivity
+- (Optional) Google Cloud service account for Sheets integration
+
+### Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/your-org/remar.git
+cd remar
+
+# Create and activate a virtual environment
+python -m venv venv
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Configure environment variables
+cp .env.example .env
+# Edit .env with your credentials
 ```
 
-2. Configure o `.env` (base em `.env.example`):
-
-Obrigatórias:
-
-- `MEGA_API_URL`
-- `MEGA_API_INSTANCE_KEY`
-- `MEGA_API_TOKEN`
-- `SUPABASE_URL`
-- `SUPABASE_KEY`
-- `LOG_LEVEL` (ex.: `INFO`)
-- `LOG_JSON` (`1` para JSON em produção)
-- `ADMIN_USER` (painel `/admin`)
-- `ADMIN_PASSWORD` (painel `/admin`)
-
-Opcionais (Google Sheets):
-
-- `GOOGLE_SHEETS_SPREADSHEET_ID`
-- `GOOGLE_APPLICATION_CREDENTIALS` ou `GOOGLE_SHEETS_CREDENTIALS_JSON`
-
-3. Garanta schema e storage no Supabase:
-
-- `docs/database/database.sql`
-- `docs/database/storage.md`
-
-## Execução
+### Running
 
 ```bash
+# Local development
 uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# With Docker
+docker compose up -d --build
+
+# Health check
+curl http://localhost:8000/health
 ```
 
-Webhook esperado:
+### Endpoints
 
-- `POST /megaapi`
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Service health check |
+| `POST` | `/megaapi` | WhatsApp webhook (MegaAPI) |
+| `GET` | `/admin` | Admin panel |
 
-Saúde da aplicação:
-
-- `GET /health`
-- Painel administrativo: `GET /admin`
-
-## Testes
-
-Executar suíte automatizada (unit + contracts + integration opcional com skip):
+### Running Tests
 
 ```bash
+# All tests (unit + contracts)
 python -m unittest discover -s tests -p "test_*.py" -v
-```
 
-Executar integração real com Supabase:
-
-```bash
+# Live integration tests (requires Supabase credentials)
 RUN_LIVE_TESTS=1 python -m unittest discover -s tests/integration -p "test_*.py" -v
 ```
 
-## Scripts Manuais
+## Environment Variables
 
-- `scripts/interactive_chat.py`: simulação interativa no terminal
-- `scripts/test_supabase_connection.py`: smoke check manual de conexão com Supabase
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `MEGA_API_URL` | Yes | MegaAPI base URL |
+| `MEGA_API_INSTANCE_KEY` | Yes | MegaAPI instance identifier |
+| `MEGA_API_TOKEN` | Yes | MegaAPI authentication token |
+| `SUPABASE_URL` | Yes | Supabase project URL |
+| `SUPABASE_KEY` | Yes | Supabase service role or anon key |
+| `LOG_LEVEL` | Yes | Logging level (e.g. `INFO`) |
+| `LOG_JSON` | Yes | Set to `1` for JSON log format |
+| `ADMIN_USER` | Yes | Admin panel username |
+| `ADMIN_PASSWORD` | Yes | Admin panel password |
+| `GOOGLE_SHEETS_SPREADSHEET_ID` | No | Google Sheets ID for logging |
+| `GOOGLE_APPLICATION_CREDENTIALS` | No | Path to service account JSON |
 
-## Documentação
+See `.env.example` for a complete template with placeholders.
 
-Comece por:
+## License
 
-- `docs/README.md`
-- `docs/architecture.md`
-- `docs/flows.md`
-- `docs/integrations.md`
-- `docs/deploy.md`
-- `docs/operations.md`
+Internal project of Associação Remar do Brasil.
 
-## Observabilidade (produção)
+---
 
-- `docker-compose.yml` já inclui:
-  - `healthcheck` em `/health`
-  - rotação de logs (`max-size=10m`, `max-file=5`)
-  - logs JSON (`LOG_JSON=1`)
-- Para acompanhar em tempo real:
-
-```bash
-docker compose logs -f --tail=200
-```
-
-## CI/CD (GitHub Actions)
-
-Workflow: `.github/workflows/deploy.yml`
-
-Fluxo:
-
-1. Executa testes automáticos.
-2. Em `main`, conecta na VPS por SSH.
-3. Roda `docker compose up -d --build --remove-orphans`.
-4. Opcional: smoke test com URL de health.
-
-Secrets esperados no GitHub:
-
-- `VPS_HOST`
-- `VPS_USER`
-- `VPS_SSH_KEY`
-- `APP_HEALTHCHECK_URL` (opcional, ex.: `https://bot.sorteionovo.com.br/health`)
-
-## Licença
-
-Projeto interno da Associação Remar do Brasil.
+Built with AI-assisted development using [Claude Code](https://claude.ai/code)
