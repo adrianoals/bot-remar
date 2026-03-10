@@ -121,9 +121,12 @@ RUN_LIVE_TESTS=1 python -m unittest discover -s tests/integration -p "test_*.py"
 | `ADMIN_USER` | Yes | Admin panel username |
 | `ADMIN_PASSWORD` | Yes | Admin panel password |
 | `GOOGLE_SHEETS_SPREADSHEET_ID` | No | Google Sheets ID for logging |
-| `GOOGLE_APPLICATION_CREDENTIALS` | No | Path to service account JSON |
+| `GOOGLE_APPLICATION_CREDENTIALS` | No | Local path to service account JSON (never commit this file) |
+| `GOOGLE_SHEETS_CREDENTIALS_JSON` | No | Full service account JSON provided via environment variable |
 
 See `.env.example` for a complete template with placeholders.
+
+For Google Sheets credentials, prefer `GOOGLE_SHEETS_CREDENTIALS_JSON` in production or a local untracked JSON file referenced by `GOOGLE_APPLICATION_CREDENTIALS`. Never commit service account keys to the repository.
 
 ## License
 

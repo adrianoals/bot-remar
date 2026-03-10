@@ -135,6 +135,11 @@ Preencha obrigatorios:
 - `ADMIN_USER` (usuario do painel)
 - `ADMIN_PASSWORD` (senha do painel)
 
+Se for usar Google Sheets:
+
+- prefira `GOOGLE_SHEETS_CREDENTIALS_JSON` como secret/variavel de ambiente
+- se usar `GOOGLE_APPLICATION_CREDENTIALS`, o arquivo JSON deve existir apenas localmente ou na VPS e nunca pode ser commitado no repositorio
+
 ## 6. Storage e banco no Supabase
 
 Antes do primeiro uso:

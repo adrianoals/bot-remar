@@ -121,9 +121,12 @@ RUN_LIVE_TESTS=1 python -m unittest discover -s tests/integration -p "test_*.py"
 | `ADMIN_USER` | Sim | Usuário do painel administrativo |
 | `ADMIN_PASSWORD` | Sim | Senha do painel administrativo |
 | `GOOGLE_SHEETS_SPREADSHEET_ID` | Não | ID da planilha Google Sheets para registro |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Não | Caminho para o JSON da conta de serviço |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Não | Caminho local para o JSON da conta de serviço (nunca versionar) |
+| `GOOGLE_SHEETS_CREDENTIALS_JSON` | Não | JSON completo da conta de serviço em variável de ambiente |
 
 Veja `.env.example` para um template completo com placeholders.
+
+Para credenciais do Google Sheets, prefira `GOOGLE_SHEETS_CREDENTIALS_JSON` em produção ou um arquivo JSON local não rastreado apontado por `GOOGLE_APPLICATION_CREDENTIALS`. Nunca envie chaves de conta de serviço para o Git.
 
 ## Licença
 

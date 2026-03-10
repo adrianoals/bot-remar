@@ -34,6 +34,8 @@ wheels/
 google-service-account.json
 *-service-account*.json
 config/*-service-account*.json
+config/gen-lang-client-*.json
+config/*credentials*.json
 
 # IDE
 .vscode/
